@@ -1,0 +1,2188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IQC Summary Statistics</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --surface2: #334155;
+      --border: #475569;
+      --text: #f1f5f9;
+      --text-dim: #94a3b8;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --inst1: #3b82f6;
+      --inst2: #8b5cf6;
+      --inst3: #06b6d4;
+      --inst4: #f59e0b;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .app-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .app-header h1 {
+      font-size: 20px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .app-header h1 .badge {
+      font-size: 11px;
+      background: var(--accent);
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 500;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn {
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.15s;
+    }
+
+    .btn:hover { background: var(--border); }
+    .btn-primary { background: var(--accent); border-color: var(--accent); }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-danger { background: var(--danger); border-color: var(--danger); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .main-content { padding: 24px; max-width: 1600px; margin: 0 auto; }
+
+    /* Upload Zone */
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      padding: 60px 40px;
+      text-align: center;
+      transition: all 0.2s;
+      cursor: pointer;
+      background: var(--surface);
+    }
+
+    .upload-zone:hover, .upload-zone.dragover {
+      border-color: var(--accent);
+      background: rgba(59, 130, 246, 0.05);
+    }
+
+    .upload-zone .icon { font-size: 48px; margin-bottom: 16px; opacity: 0.7; }
+    .upload-zone h2 { font-size: 18px; margin-bottom: 8px; }
+    .upload-zone p { color: var(--text-dim); font-size: 14px; }
+
+    .file-list {
+      margin-top: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+    }
+
+    .file-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface2);
+      padding: 6px 12px;
+      border-radius: 16px;
+      font-size: 13px;
+    }
+
+    .file-chip .remove {
+      cursor: pointer;
+      opacity: 0.6;
+      font-size: 16px;
+    }
+
+    .file-chip .remove:hover { opacity: 1; }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      background: var(--surface);
+      padding: 4px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      width: fit-content;
+    }
+
+    .tab {
+      padding: 8px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-dim);
+      transition: all 0.15s;
+      border: none;
+      background: none;
+    }
+
+    .tab:hover { color: var(--text); }
+    .tab.active { background: var(--accent); color: white; }
+
+    /* Stats Bar */
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .stat-card .label { font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-card .value { font-size: 24px; font-weight: 700; margin-top: 4px; }
+    .stat-card .sub { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+
+    /* Filters */
+    .filters {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .filter-group { display: flex; flex-direction: column; gap: 4px; }
+    .filter-group label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+
+    select, input[type="text"] {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      min-width: 160px;
+    }
+
+    select:focus, input:focus { outline: none; border-color: var(--accent); }
+
+    /* Table */
+    .table-container {
+      overflow-x: auto;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    thead th {
+      background: var(--surface2);
+      padding: 10px 12px;
+      text-align: center;
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      border-bottom: 2px solid var(--border);
+      position: sticky;
+      top: 0;
+      white-space: nowrap;
+    }
+
+    thead th.group-header {
+      font-size: 13px;
+      text-transform: none;
+      letter-spacing: 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    thead th.inst1 { border-top: 3px solid var(--inst1); }
+    thead th.inst2 { border-top: 3px solid var(--inst2); }
+    thead th.inst3 { border-top: 3px solid var(--inst3); }
+    thead th.inst4 { border-top: 3px solid var(--inst4); }
+    thead th.combined { border-top: 3px solid var(--success); }
+
+    td {
+      padding: 8px 12px;
+      border-bottom: 1px solid rgba(71, 85, 105, 0.3);
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    td.analyte { text-align: left; font-weight: 500; }
+    td.level { text-align: center; }
+
+    tr:hover td { background: rgba(59, 130, 246, 0.05); }
+    tr.even-group td { background: rgba(59, 130, 246, 0.03); }
+    tr.even-group:hover td { background: rgba(59, 130, 246, 0.08); }
+
+    .cv-high { color: var(--danger); font-weight: 600; }
+    .cv-warn { color: var(--warning); font-weight: 600; }
+    .cv-ok { color: var(--success); }
+
+    /* Charts */
+    .chart-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+    }
+
+    .chart-card h3 {
+      font-size: 14px;
+      margin-bottom: 16px;
+      color: var(--text-dim);
+    }
+
+    .chart-wrapper { position: relative; height: 350px; }
+
+    /* Raw Data Table */
+    .raw-table td { font-size: 12px; padding: 6px 10px; }
+    .raw-table th { font-size: 11px; padding: 8px 10px; }
+
+    .status-accepted { color: var(--success); }
+    .status-rejected { color: var(--danger); }
+    .status-manual { color: var(--warning); }
+
+    /* Progress */
+    .processing-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.85);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .processing-overlay.active { display: flex; }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .processing-text { font-size: 14px; color: var(--text-dim); }
+
+    /* Pagination */
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--text-dim);
+    }
+
+    .page-controls { display: flex; gap: 4px; }
+    .page-btn {
+      padding: 4px 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .page-btn:hover { background: var(--border); }
+    .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Exclusion Panel */
+    .exclusion-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+    .exclusion-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .exclusion-header h4 { font-size: 13px; font-weight: 600; }
+    .exclusion-header .toggle-arrow { transition: transform 0.2s; font-size: 12px; color: var(--text-dim); }
+    .exclusion-header .toggle-arrow.open { transform: rotate(180deg); }
+    .exclusion-body {
+      display: none;
+      padding: 0 16px 16px;
+    }
+    .exclusion-body.open { display: block; }
+    .exclusion-add {
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .exclusion-add .filter-group { margin-bottom: 0; }
+    .exclusion-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .exclusion-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: var(--danger);
+      padding: 4px 10px;
+      border-radius: 14px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .exclusion-chip .remove-exc {
+      cursor: pointer;
+      font-size: 14px;
+      opacity: 0.7;
+    }
+    .exclusion-chip .remove-exc:hover { opacity: 1; }
+    .exclusion-count {
+      background: var(--danger);
+      color: white;
+      font-size: 11px;
+      padding: 1px 6px;
+      border-radius: 8px;
+      margin-left: 6px;
+    }
+    td.excluded {
+      opacity: 0.25;
+      text-decoration: line-through;
+    }
+
+    .checkbox-group {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .cb-label {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      font-size: 13px;
+      padding: 6px 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      transition: all 0.15s;
+      user-select: none;
+    }
+    .cb-label:has(input:checked) { border-color: var(--accent); background: rgba(59,130,246,0.1); }
+    .cb-label input { display: none; }
+    .cb-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .cb-label:has(input:not(:checked)) { opacity: 0.45; }
+
+    .hidden { display: none !important; }
+
+    /* Clickable cells */
+    td.clickable {
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    td.clickable:hover {
+      background: rgba(59, 130, 246, 0.15) !important;
+      text-decoration: underline;
+    }
+
+    /* Detail Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 300;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(4px);
+    }
+    .modal-overlay.active { display: flex; }
+
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      max-width: 720px;
+      width: 90vw;
+      max-height: 80vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface2);
+    }
+
+    .modal-header h3 { font-size: 15px; font-weight: 600; }
+
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      font-size: 20px;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+    .modal-close:hover { background: var(--border); color: var(--text); }
+
+    .modal-body {
+      padding: 20px;
+      overflow-y: auto;
+      font-size: 13px;
+    }
+
+    .calc-section {
+      margin-bottom: 16px;
+    }
+
+    .calc-section h4 {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+    }
+
+    .calc-formula {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 16px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      overflow-x: auto;
+    }
+
+    .calc-formula .label { color: var(--text-dim); }
+    .calc-formula .value { color: var(--accent); font-weight: 600; }
+    .calc-formula .result { color: var(--success); font-weight: 700; }
+    .calc-formula .operator { color: var(--warning); }
+
+    .data-points-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      margin-top: 8px;
+    }
+
+    .data-points-table th {
+      background: var(--bg);
+      padding: 6px 10px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .data-points-table td {
+      padding: 5px 10px;
+      border-bottom: 1px solid rgba(71,85,105,0.2);
+      text-align: left;
+    }
+
+    .data-points-table tr:hover td { background: rgba(59, 130, 246, 0.05); }
+
+    .highlight-row { color: var(--danger); font-weight: 600; }
+    .badge-stat {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .badge-mean { background: rgba(34,197,94,0.15); color: var(--success); }
+    .badge-sd { background: rgba(245,158,11,0.15); color: var(--warning); }
+    .badge-cv { background: rgba(59,130,246,0.15); color: var(--accent); }
+    .badge-n { background: rgba(139,92,246,0.15); color: #a78bfa; }
+
+    .summary-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .summary-item {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 14px;
+      text-align: center;
+      flex: 1;
+      min-width: 100px;
+    }
+
+    .summary-item .s-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; }
+    .summary-item .s-value { font-size: 18px; font-weight: 700; margin-top: 2px; }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .main-content { padding: 12px; }
+      .stats-bar { grid-template-columns: repeat(2, 1fr); }
+      .filters { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="app-header">
+  <h1>IQC Summary Statistics <span class="badge">v2.0</span></h1>
+  <div class="header-actions">
+    <button class="btn" id="btnLoadReport" style="background:var(--accent);border-color:var(--accent)">Load Report</button>
+    <button class="btn btn-primary" id="btnSaveReport" disabled>Save Report</button>
+    <button class="btn btn-primary" id="btnReport" disabled>Create Report (PDF)</button>
+    <button class="btn" id="btnExportXLSX" disabled>Export XLSX</button>
+    <button class="btn" id="btnExportCSV" disabled>Export CSV</button>
+    <button class="btn btn-danger" id="btnReset" disabled>Clear Data</button>
+  </div>
+</div>
+
+<div class="main-content">
+  <!-- Upload Zone -->
+  <div id="uploadSection">
+    <div class="upload-zone" id="dropZone">
+      <div class="icon">📂</div>
+      <h2>Drop QC Export CSV Files Here</h2>
+      <p>Or click to browse. Accepts semicolon-delimited CSV files from QC software.</p>
+      <p style="margin-top:8px;font-size:12px;color:var(--text-dim)">Multiple files supported - they'll be merged automatically</p>
+      <input type="file" id="fileInput" multiple accept=".csv" style="display:none">
+    </div>
+    <div class="file-list" id="fileList"></div>
+    <div style="text-align:center;margin-top:16px">
+      <button class="btn btn-primary" id="btnProcess" disabled style="padding:12px 32px;font-size:15px">Process Data</button>
+    </div>
+  </div>
+
+  <!-- Results Section -->
+  <div id="resultsSection" class="hidden">
+    <div class="stats-bar" id="statsBar"></div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="results">Results Summary</button>
+      <button class="tab" data-tab="charts">Charts</button>
+      <button class="tab" data-tab="rawdata">Raw Data</button>
+    </div>
+
+    <!-- Results Tab -->
+    <div id="tab-results">
+      <div class="exclusion-panel" id="exclusionPanel">
+        <div class="exclusion-header" id="exclusionToggle">
+          <h4>Instrument Exclusions <span class="exclusion-count hidden" id="exclusionCount">0</span></h4>
+          <span class="toggle-arrow" id="exclusionArrow">&#9660;</span>
+        </div>
+        <div class="exclusion-body" id="exclusionBody">
+          <div class="exclusion-add">
+            <div class="filter-group">
+              <label>Analyte</label>
+              <select id="excAnalyte"></select>
+            </div>
+            <div class="filter-group">
+              <label>Instrument</label>
+              <select id="excInstrument">
+                <option value="AU/DxI-1">AU/DxI-1</option>
+                <option value="AU/DxI-2">AU/DxI-2</option>
+                <option value="AU/DxI-3">AU/DxI-3</option>
+                <option value="AU/DxI-4">AU/DxI-4</option>
+              </select>
+            </div>
+            <button class="btn btn-primary" id="btnAddExclusion" style="margin-bottom:0">Add Exclusion</button>
+          </div>
+          <div class="exclusion-list" id="exclusionList"></div>
+        </div>
+      </div>
+      <div class="filters">
+        <div class="filter-group">
+          <label>Analyte</label>
+          <select id="filterAnalyte">
+            <option value="all">All Analytes</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label>Search Analyte</label>
+          <input type="text" id="filterSearch" placeholder="e.g. C_CRP, I_HBC...">
+        </div>
+        <div class="filter-group">
+          <label>Status Filter</label>
+          <select id="filterStatus">
+            <option value="all">All Statuses</option>
+            <option value="accepted" selected>Accepted Only</option>
+            <option value="rejected">Rejected Only</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label>CV% Highlight</label>
+          <select id="filterCV">
+            <option value="all">Show All</option>
+            <option value="high">High CV (>10%)</option>
+            <option value="warn">Warning CV (>5%)</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label>Protocol</label>
+          <select id="filterProtocol">
+            <option value="all">All Protocols</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label>Date From</label>
+          <select id="filterDateFrom">
+            <option value="">Earliest</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label>Date To</label>
+          <select id="filterDateTo">
+            <option value="">Latest</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-container" id="resultsTable"></div>
+    </div>
+
+    <!-- Charts Tab -->
+    <div id="tab-charts" class="hidden">
+      <div class="filters">
+        <div class="filter-group">
+          <label>Analyte</label>
+          <select id="chartAnalyte"></select>
+        </div>
+        <div class="filter-group">
+          <label>Level</label>
+          <select id="chartLevel"></select>
+        </div>
+        <div class="filter-group">
+          <label>Instruments</label>
+          <div class="checkbox-group" id="chartInstruments">
+            <label class="cb-label"><input type="checkbox" value="AU/DxI-1" checked><span class="cb-dot" style="background:var(--inst1)"></span>AU/DxI-1</label>
+            <label class="cb-label"><input type="checkbox" value="AU/DxI-2" checked><span class="cb-dot" style="background:var(--inst2)"></span>AU/DxI-2</label>
+            <label class="cb-label"><input type="checkbox" value="AU/DxI-3" checked><span class="cb-dot" style="background:var(--inst3)"></span>AU/DxI-3</label>
+            <label class="cb-label"><input type="checkbox" value="AU/DxI-4" checked><span class="cb-dot" style="background:var(--inst4)"></span>AU/DxI-4</label>
+          </div>
+        </div>
+      </div>
+      <div class="chart-grid">
+        <div class="chart-card">
+          <h3>Levey-Jennings Control Chart</h3>
+          <div class="chart-wrapper"><canvas id="ljChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3>CV% Comparison Across Instruments</h3>
+          <div class="chart-wrapper"><canvas id="cvChart"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Raw Data Tab -->
+    <div id="tab-rawdata" class="hidden">
+      <div class="filters">
+        <div class="filter-group">
+          <label>Search</label>
+          <input type="text" id="rawSearch" placeholder="Search any column...">
+        </div>
+      </div>
+      <div class="table-container" id="rawDataTable"></div>
+      <div class="pagination" id="rawPagination"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Load Report Modal -->
+<div class="modal-overlay" id="loadModalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Saved Reports</h3>
+      <button class="modal-close" id="loadModalClose">&#10005;</button>
+    </div>
+    <div class="modal-body" id="loadModalBody">
+      <div style="text-align:center;padding:20px;color:var(--text-dim)">Loading...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modalTitle">Calculation Detail</h3>
+      <button class="modal-close" id="modalClose">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<div class="processing-overlay" id="processingOverlay">
+  <div class="spinner"></div>
+  <div class="processing-text" id="processingText">Processing data...</div>
+</div>
+
+<script>
+// =============================================
+// QC AUDIT TOOL - Complete Processing Engine
+// =============================================
+
+const INSTRUMENTS_MAP = {
+  'AU5800 1 L': 'AU/DxI-1',
+  'AU5800 2 L': 'AU/DxI-2',
+  'AU3 680 M': 'AU/DxI-3',
+  'AU4 680 M': 'AU/DxI-4',
+  'DXI 1 L': 'AU/DxI-1',
+  'DXI 2 L': 'AU/DxI-2',
+  'DXI 3 M': 'AU/DxI-3',
+  'DXI 4 M': 'AU/DxI-4',
+};
+
+const EXCLUDED_PROTOCOLS = new Set([
+  'AU 5800 1 L Patient Means', 'AU 5800 2 L Patient Means',
+  'AU3 680 M Patient Means', 'AU4 680 M Patient Means',
+  'DxH L1 MCHFT Moving Average', 'DxH L2 MCHFT Moving Average',
+  'DxH L3 MCHFT Moving Average', 'DxH1 ECHT Moving Average',
+  'DxH2 ECHT Moving Average', 'DXI 1 L Patient Means',
+  'DXI 2 L Patient Means', 'DXI 3 M Patient Means',
+  'DXI 4 M Patient Means', 'DXI 1 L NEW LAC', 'DXI 2 L NEW LAC',
+  'DXI 3 M NEW LAC', 'DXI 4 M NEW LAC', 'ACCURUN1', 'ACCURUN25',
+  'ACCURUN52', 'HAVIgMqc', 'HBcAbQC', 'HBsAbQC', 'HBsAgQC',
+  'HCVABV3QC', 'HIVCoQC', 'QBLUE', 'QBLUE-SYPH', 'QHEPA',
+  'QHIV2', 'QHIVp24', 'RUBELLAIgGQC', 'SYPHQC', 'I_HCG',
+  'H_MCH', 'H_MCHC', 'H_MCV', 'H_WBC',
+  'AU1 5800 L P Eval', 'AU2 5800 L P Eval',
+  'DXI 1 L EVALUATION', 'DXI 2 L EVALUATION',
+  'DXI 3 L EVALUATION', 'DXI 4 L EVALUATION',
+]);
+
+const LEVEL_OVERRIDE_PROTOCOLS = new Set([
+  'LAC DXI 1 L', 'LAC DXI 2 L', 'LAC DXI 3 L', 'LAC DXI 4 L',
+  'DXI 1 hsTnI', 'DXI 2 hsTnI', 'DXI 3 hsTnT', 'DXI 4 hsTnI',
+  'AU3 680 M HBQC', 'AU4 680 M HBQC', 'AU 5800 1 L HBQC', 'AU 5800 2 L HBQC',
+  'AU5800 1 L P', 'AU 5800 2 L P', 'AU3 680 M P', 'AU4 680 M P',
+  'LAC DXI 4 M', 'LAC DXI 3 M',
+]);
+
+// State
+let rawData = [];
+let processedData = [];
+let resultsData = [];
+let uploadedFiles = [];
+let ljChartInstance = null;
+let cvChartInstance = null;
+let rawPage = 0;
+const RAW_PAGE_SIZE = 100;
+
+// =============================================
+// CSV PARSING
+// =============================================
+function parseCSV(text) {
+  const lines = text.split('\n').filter(l => l.trim());
+  const rows = [];
+  for (let i = 0; i < lines.length; i++) {
+    const fields = lines[i].split(';').map(f => f.trim());
+    if (i === 0 && fields[0].toLowerCase().includes('protocol')) continue;
+    if (fields.length < 9) continue;
+    const val = parseFloat(fields[5]);
+    if (isNaN(val)) continue;
+    rows.push({
+      protocol: fields[0] || '',
+      instrument: fields[1] || '',
+      parameter: fields[2] || '',
+      level: fields[3] || '',
+      date: fields[4] || '',
+      value: val,
+      target: parseFloat(fields[6]) || 0,
+      sd: parseFloat(fields[7]) || 0,
+      status: fields[8] || '',
+      message: fields[9] || '',
+      comment: fields[10] || '',
+      user: fields[11] || '',
+      sampleId: fields[12] || '',
+    });
+  }
+  return rows;
+}
+
+// =============================================
+// DATA PROCESSING (replicates VBA logic)
+// =============================================
+function processData(data) {
+  // 1. Filter out excluded protocols and evaluations
+  let filtered = data.filter(row => {
+    if (EXCLUDED_PROTOCOLS.has(row.protocol)) return false;
+    if (row.protocol.toLowerCase().includes('eval')) return false;
+    return true;
+  });
+
+  // 2. Filter out rejected
+  filtered = filtered.filter(r => r.status !== 'Manually rejected' && r.status !== 'Rerun requested');
+
+  // 3. Rename instruments
+  filtered = filtered.map(row => {
+    const mapped = INSTRUMENTS_MAP[row.instrument];
+    return { ...row, instrument: mapped || row.instrument };
+  });
+
+  // 4. Override levels for specific protocols
+  filtered = filtered.map(row => {
+    if (LEVEL_OVERRIDE_PROTOCOLS.has(row.protocol.trim()) || (row.sampleId && row.sampleId.includes('TPP')) || (row.sampleId && row.sampleId.includes('HBQC'))) {
+      return { ...row, level: '4' };
+    }
+    return row;
+  });
+
+  // Only keep rows with known instruments
+  const knownInstruments = new Set(['AU/DxI-1', 'AU/DxI-2', 'AU/DxI-3', 'AU/DxI-4']);
+  filtered = filtered.filter(r => knownInstruments.has(r.instrument));
+
+  return filtered;
+}
+
+function computeStats(values) {
+  if (!values.length) return { mean: 0, sd: 0, cv: 0, count: 0 };
+  const n = values.length;
+  const mean = values.reduce((a, b) => a + b, 0) / n;
+  const variance = values.reduce((a, b) => a + (b - mean) ** 2, 0) / (n - 1);
+  const sd = n > 1 ? Math.sqrt(variance) : 0;
+  const cv = mean !== 0 ? (sd / mean) * 100 : 0;
+  return { mean, sd, cv: Math.abs(cv), count: n };
+}
+
+function buildResults(data) {
+  // Group by parameter + level
+  const groups = {};
+  for (const row of data) {
+    const key = `${row.parameter}|${row.level}`;
+    if (!groups[key]) groups[key] = {};
+    if (!groups[key][row.instrument]) groups[key][row.instrument] = [];
+    groups[key][row.instrument].push(row.value);
+  }
+
+  const instruments = ['AU/DxI-1', 'AU/DxI-2', 'AU/DxI-3', 'AU/DxI-4'];
+  const results = [];
+
+  for (const [key, instData] of Object.entries(groups)) {
+    const [param, level] = key.split('|');
+    const row = { parameter: param, level };
+
+    // Per-instrument stats
+    for (const inst of instruments) {
+      const values = instData[inst] || [];
+      row[inst] = computeStats(values);
+    }
+
+    // Combined stats
+    const allValues = instruments.flatMap(inst => instData[inst] || []);
+    row.combined = computeStats(allValues);
+
+    results.push(row);
+  }
+
+  // Sort by parameter then level
+  results.sort((a, b) => {
+    const cmp = a.parameter.localeCompare(b.parameter);
+    return cmp !== 0 ? cmp : parseInt(a.level) - parseInt(b.level);
+  });
+
+  return results;
+}
+
+// =============================================
+// UI RENDERING
+// =============================================
+function renderStats() {
+  const protocols = new Set(processedData.map(r => r.protocol));
+  const parameters = new Set(processedData.map(r => r.parameter));
+  const dateRange = processedData.reduce((acc, r) => {
+    if (r.date) {
+      if (!acc.min || r.date < acc.min) acc.min = r.date;
+      if (!acc.max || r.date > acc.max) acc.max = r.date;
+    }
+    return acc;
+  }, { min: '', max: '' });
+
+  const rejectedCount = rawData.filter(r => r.status === 'Manually rejected').length;
+
+  document.getElementById('statsBar').innerHTML = `
+    <div class="stat-card" style="max-width:300px">
+      <div class="label">Date Range</div>
+      <div class="value" style="font-size:14px">${dateRange.min ? dateRange.min.substring(0, 10) : 'N/A'} — ${dateRange.max ? dateRange.max.substring(0, 10) : 'N/A'}</div>
+    </div>
+  `;
+}
+
+function renderResultsTable() {
+  const search = document.getElementById('filterSearch').value.toLowerCase();
+  const cvFilter = document.getElementById('filterCV').value;
+  const analyteFilter = document.getElementById('filterAnalyte').value;
+
+  let data = resultsData;
+  if (analyteFilter !== 'all') data = data.filter(r => r.parameter === analyteFilter);
+  if (search) data = data.filter(r => r.parameter.toLowerCase().includes(search));
+  if (cvFilter === 'high') data = data.filter(r => r.combined.cv > 10);
+  if (cvFilter === 'warn') data = data.filter(r => r.combined.cv > 5);
+
+  const instruments = ['AU/DxI-1', 'AU/DxI-2', 'AU/DxI-3', 'AU/DxI-4'];
+  const instClasses = ['inst1', 'inst2', 'inst3', 'inst4'];
+
+  let html = `<table><thead>
+    <tr>
+      <th rowspan="2" style="text-align:left;min-width:120px">Analyte</th>
+      <th rowspan="2" style="width:50px">Level</th>
+      ${instruments.map((inst, i) => `<th colspan="4" class="group-header ${instClasses[i]}">${inst}</th>`).join('')}
+      <th colspan="4" class="group-header combined">Combined</th>
+    </tr>
+    <tr>
+      ${[...instruments, 'Combined'].map((_, i) => `
+        <th>Mean</th><th>SD</th><th>CV%</th><th>n</th>
+      `).join('')}
+    </tr>
+  </thead><tbody>`;
+
+  let prevParam = '';
+  let groupIdx = 0;
+
+  for (const row of data) {
+    if (row.parameter !== prevParam) { groupIdx++; prevParam = row.parameter; }
+    const even = groupIdx % 2 === 0;
+
+    html += `<tr class="${even ? 'even-group' : ''}">`;
+    html += `<td class="analyte">${row.parameter}</td>`;
+    html += `<td class="level">${row.level}</td>`;
+
+    for (const inst of instruments) {
+      const s = row[inst];
+      html += renderStatCells(s, row.parameter, row.level, inst);
+    }
+    html += renderStatCells(row.combined, row.parameter, row.level, 'combined');
+    html += '</tr>';
+  }
+
+  html += '</tbody></table>';
+  document.getElementById('resultsTable').innerHTML = html;
+}
+
+function renderStatCells(s, param, level, instrument) {
+  if (!s || s.count === 0) return '<td>-</td><td>-</td><td>-</td><td>-</td>';
+  const cvClass = s.cv > 10 ? 'cv-high' : s.cv > 5 ? 'cv-warn' : 'cv-ok';
+  const d = `data-param="${param}" data-level="${level}" data-inst="${instrument}"`;
+  return `<td class="clickable" ${d} data-stat="mean">${s.mean.toFixed(2)}</td>
+    <td class="clickable" ${d} data-stat="sd">${s.sd.toFixed(2)}</td>
+    <td class="clickable ${cvClass}" ${d} data-stat="cv">${s.cv.toFixed(2)}</td>
+    <td class="clickable" ${d} data-stat="n">${s.count}</td>`;
+}
+
+function renderRawData() {
+  const search = document.getElementById('rawSearch').value.toLowerCase();
+  let data = processedData;
+  if (search) {
+    data = data.filter(r =>
+      Object.values(r).some(v => String(v).toLowerCase().includes(search))
+    );
+  }
+
+  const totalPages = Math.ceil(data.length / RAW_PAGE_SIZE);
+  rawPage = Math.min(rawPage, totalPages - 1);
+  rawPage = Math.max(rawPage, 0);
+  const start = rawPage * RAW_PAGE_SIZE;
+  const pageData = data.slice(start, start + RAW_PAGE_SIZE);
+
+  let html = `<table class="raw-table"><thead><tr>
+    <th>Protocol</th><th>Instrument</th><th>Parameter</th><th>Level</th>
+    <th>Date</th><th>Value</th><th>Target</th><th>SD</th><th>Status</th>
+    <th>Message</th><th>User</th><th>Sample ID</th>
+  </tr></thead><tbody>`;
+
+  for (const r of pageData) {
+    const statusClass = r.status.includes('Accepted') ? 'status-accepted' :
+      r.status.includes('rejected') ? 'status-rejected' : 'status-manual';
+    html += `<tr>
+      <td style="text-align:left">${r.protocol}</td>
+      <td>${r.instrument}</td>
+      <td>${r.parameter}</td>
+      <td>${r.level}</td>
+      <td>${r.date}</td>
+      <td><b>${r.value}</b></td>
+      <td>${r.target}</td>
+      <td>${r.sd}</td>
+      <td class="${statusClass}">${r.status}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;text-align:left">${r.message}</td>
+      <td>${r.user}</td>
+      <td>${r.sampleId}</td>
+    </tr>`;
+  }
+
+  html += '</tbody></table>';
+  document.getElementById('rawDataTable').innerHTML = html;
+
+  document.getElementById('rawPagination').innerHTML = `
+    <span>Showing ${start + 1}-${Math.min(start + RAW_PAGE_SIZE, data.length)} of ${data.length}</span>
+    <div class="page-controls">
+      <button class="page-btn" onclick="rawPage=0;renderRawData()" ${rawPage === 0 ? 'disabled' : ''}>First</button>
+      <button class="page-btn" onclick="rawPage--;renderRawData()" ${rawPage === 0 ? 'disabled' : ''}>Prev</button>
+      <button class="page-btn" onclick="rawPage++;renderRawData()" ${rawPage >= totalPages - 1 ? 'disabled' : ''}>Next</button>
+      <button class="page-btn" onclick="rawPage=${totalPages - 1};renderRawData()" ${rawPage >= totalPages - 1 ? 'disabled' : ''}>Last</button>
+    </div>
+  `;
+}
+
+// =============================================
+// CHARTS
+// =============================================
+function populateChartFilters() {
+  const params = [...new Set(processedData.map(r => r.parameter))].sort();
+  const levels = [...new Set(processedData.map(r => r.level))].sort();
+
+  const paramSelect = document.getElementById('chartAnalyte');
+  paramSelect.innerHTML = params.map(p => `<option value="${p}">${p}</option>`).join('');
+
+  const levelSelect = document.getElementById('chartLevel');
+  levelSelect.innerHTML = levels.map(l => `<option value="${l}">${l}</option>`).join('');
+}
+
+function getSelectedInstruments() {
+  return [...document.querySelectorAll('#chartInstruments input:checked')].map(cb => cb.value);
+}
+
+function renderLJChart() {
+  const param = document.getElementById('chartAnalyte').value;
+  const level = document.getElementById('chartLevel').value;
+  const selectedInsts = getSelectedInstruments();
+
+  if (!selectedInsts.length) {
+    if (ljChartInstance) ljChartInstance.destroy();
+    return;
+  }
+
+  const filtered = processedData.filter(r =>
+    r.parameter === param && r.level === level && selectedInsts.includes(r.instrument)
+  );
+
+  const sorted = [...filtered].sort((a, b) => parseDate(a.date) - parseDate(b.date));
+  if (!sorted.length) return;
+
+  const values = sorted.map(r => r.value);
+  const stats = computeStats(values);
+
+  const colors = {
+    'AU/DxI-1': 'rgba(59, 130, 246, 0.8)',
+    'AU/DxI-2': 'rgba(139, 92, 246, 0.8)',
+    'AU/DxI-3': 'rgba(6, 182, 212, 0.8)',
+    'AU/DxI-4': 'rgba(245, 158, 11, 0.8)',
+  };
+
+  const datasets = [];
+  for (const inst of selectedInsts) {
+    const instData = sorted.filter(r => r.instrument === inst);
+    if (instData.length === 0) continue;
+    datasets.push({
+      label: inst,
+      data: instData.map(r => ({ x: parseDate(r.date).getTime(), y: r.value, fullDate: r.date })),
+      borderColor: colors[inst],
+      backgroundColor: colors[inst],
+      pointRadius: 3,
+      pointHoverRadius: 6,
+      borderWidth: 1.5,
+      tension: 0,
+      showLine: true,
+    });
+  }
+
+  if (ljChartInstance) ljChartInstance.destroy();
+
+  const ctx = document.getElementById('ljChart').getContext('2d');
+  ljChartInstance = new Chart(ctx, {
+    type: 'scatter',
+    data: { datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        annotation: {
+          annotations: {
+            meanLine: {
+              type: 'line', yMin: stats.mean, yMax: stats.mean,
+              borderColor: 'rgba(34, 197, 94, 0.8)', borderWidth: 2, borderDash: [6, 3],
+              label: { display: true, content: `Mean: ${stats.mean.toFixed(2)}`, position: 'start', backgroundColor: 'rgba(34,197,94,0.8)', font: { size: 11 } }
+            },
+            plus1sd: {
+              type: 'line', yMin: stats.mean + stats.sd, yMax: stats.mean + stats.sd,
+              borderColor: 'rgba(245, 158, 11, 0.5)', borderWidth: 1, borderDash: [4, 4],
+              label: { display: true, content: '+1SD', position: 'start', backgroundColor: 'rgba(245,158,11,0.6)', font: { size: 10 } }
+            },
+            minus1sd: {
+              type: 'line', yMin: stats.mean - stats.sd, yMax: stats.mean - stats.sd,
+              borderColor: 'rgba(245, 158, 11, 0.5)', borderWidth: 1, borderDash: [4, 4],
+              label: { display: true, content: '-1SD', position: 'start', backgroundColor: 'rgba(245,158,11,0.6)', font: { size: 10 } }
+            },
+            plus2sd: {
+              type: 'line', yMin: stats.mean + 2 * stats.sd, yMax: stats.mean + 2 * stats.sd,
+              borderColor: 'rgba(239, 68, 68, 0.6)', borderWidth: 1.5, borderDash: [6, 3],
+              label: { display: true, content: '+2SD', position: 'start', backgroundColor: 'rgba(239,68,68,0.7)', font: { size: 10 } }
+            },
+            minus2sd: {
+              type: 'line', yMin: stats.mean - 2 * stats.sd, yMax: stats.mean - 2 * stats.sd,
+              borderColor: 'rgba(239, 68, 68, 0.6)', borderWidth: 1.5, borderDash: [6, 3],
+              label: { display: true, content: '-2SD', position: 'start', backgroundColor: 'rgba(239,68,68,0.7)', font: { size: 10 } }
+            },
+            plus3sd: {
+              type: 'line', yMin: stats.mean + 3 * stats.sd, yMax: stats.mean + 3 * stats.sd,
+              borderColor: 'rgba(239, 68, 68, 1)', borderWidth: 2,
+              label: { display: true, content: '+3SD', position: 'start', backgroundColor: 'rgba(239,68,68,1)', font: { size: 10 } }
+            },
+            minus3sd: {
+              type: 'line', yMin: stats.mean - 3 * stats.sd, yMax: stats.mean - 3 * stats.sd,
+              borderColor: 'rgba(239, 68, 68, 1)', borderWidth: 2,
+              label: { display: true, content: '-3SD', position: 'start', backgroundColor: 'rgba(239,68,68,1)', font: { size: 10 } }
+            },
+          }
+        },
+        legend: { labels: { color: '#94a3b8' } },
+        tooltip: {
+          callbacks: {
+            title: ctx => {
+              const raw = ctx[0]?.raw;
+              return raw?.fullDate || '';
+            },
+            label: ctx => {
+              const v = ctx.parsed?.y ?? ctx.raw?.y ?? ctx.raw;
+              return `${ctx.dataset.label}: ${Number(v).toFixed(2)}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          ticks: {
+            color: '#94a3b8',
+            maxTicksLimit: 15,
+            maxRotation: 45,
+            callback: function(value) {
+              const d = new Date(value);
+              return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' });
+            }
+          },
+          grid: { color: 'rgba(71,85,105,0.3)' }
+        },
+        y: {
+          ticks: { color: '#94a3b8' },
+          grid: { color: 'rgba(71,85,105,0.3)' }
+        }
+      }
+    }
+  });
+}
+
+function renderCVChart() {
+  const instruments = ['AU/DxI-1', 'AU/DxI-2', 'AU/DxI-3', 'AU/DxI-4'];
+  const colors = ['rgba(59,130,246,0.7)', 'rgba(139,92,246,0.7)', 'rgba(6,182,212,0.7)', 'rgba(245,158,11,0.7)'];
+
+  // Get top 20 analytes by data count
+  const paramCounts = {};
+  for (const r of resultsData) {
+    paramCounts[r.parameter] = (paramCounts[r.parameter] || 0) + r.combined.count;
+  }
+  const topParams = Object.entries(paramCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 20)
+    .map(e => e[0]);
+
+  const labels = topParams;
+  const datasets = instruments.map((inst, i) => ({
+    label: inst,
+    data: topParams.map(p => {
+      const row = resultsData.find(r => r.parameter === p && r.level === '1');
+      return row && row[inst] ? row[inst].cv : 0;
+    }),
+    backgroundColor: colors[i],
+    borderWidth: 0,
+    borderRadius: 3,
+  }));
+
+  if (cvChartInstance) cvChartInstance.destroy();
+
+  const ctx = document.getElementById('cvChart').getContext('2d');
+  cvChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#94a3b8' } },
+        annotation: {
+          annotations: {
+            cvThreshold: {
+              type: 'line', yMin: 5, yMax: 5,
+              borderColor: 'rgba(245, 158, 11, 0.8)', borderWidth: 1.5, borderDash: [4, 4],
+              label: { display: true, content: 'CV 5%', position: 'end', backgroundColor: 'rgba(245,158,11,0.7)', font: { size: 10 } }
+            },
+            cvHigh: {
+              type: 'line', yMin: 10, yMax: 10,
+              borderColor: 'rgba(239, 68, 68, 0.8)', borderWidth: 1.5, borderDash: [4, 4],
+              label: { display: true, content: 'CV 10%', position: 'end', backgroundColor: 'rgba(239,68,68,0.7)', font: { size: 10 } }
+            }
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#94a3b8', maxRotation: 45 }, grid: { color: 'rgba(71,85,105,0.3)' } },
+        y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(71,85,105,0.3)' }, title: { display: true, text: 'CV%', color: '#94a3b8' } }
+      }
+    }
+  });
+}
+
+function parseDate(dateStr) {
+  if (!dateStr) return new Date(0);
+  const parts = dateStr.split(' ')[0].split('/');
+  if (parts.length === 3) {
+    return new Date(parts[2], parts[1] - 1, parts[0]);
+  }
+  return new Date(dateStr);
+}
+
+// =============================================
+// EXPORT
+// =============================================
+function exportPDF() {
+  try {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const instruments = ['AU/DxI-1', 'AU/DxI-2', 'AU/DxI-3', 'AU/DxI-4'];
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  // --- Page 1: Title + Summary Stats ---
+  doc.setFillColor(30, 41, 59);
+  doc.rect(0, 0, pageW, 35, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(22);
+  doc.setFont('helvetica', 'bold');
+  doc.text('QC Audit Report', 14, 18);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Generated: ${today}`, 14, 28);
+
+  const protocolCount = new Set(processedData.map(r => r.protocol)).size;
+  const parameterCount = new Set(processedData.map(r => r.parameter)).size;
+  const rejectedCount = rawData.filter(r => r.status === 'Manually rejected').length;
+  const dates = processedData.map(r => parseDate(r.date)).filter(d => d.getTime() > 0);
+  const minDate = dates.length ? new Date(Math.min(...dates)).toLocaleDateString('en-GB') : 'N/A';
+  const maxDate = dates.length ? new Date(Math.max(...dates)).toLocaleDateString('en-GB') : 'N/A';
+
+  // Summary boxes
+  doc.setTextColor(0, 0, 0);
+  const boxY = 45;
+  const boxW = 60;
+  const boxGap = 8;
+  const summaryData = [
+    { label: 'Total Records', value: rawData.length.toLocaleString(), sub: `${processedData.length} after filtering` },
+    { label: 'Parameters', value: new Set(processedData.map(r => r.parameter)).size.toString(), sub: `${resultsData.length} analyte/level combos` },
+    { label: 'Rejected', value: rejectedCount.toString(), sub: 'manually rejected' },
+    { label: 'Date Range', value: minDate, sub: `to ${maxDate}` },
+  ];
+
+  summaryData.forEach((s, i) => {
+    const x = 14 + i * (boxW + boxGap);
+    doc.setFillColor(241, 245, 249);
+    doc.roundedRect(x, boxY, boxW, 28, 2, 2, 'F');
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text(s.label.toUpperCase(), x + 4, boxY + 7);
+    doc.setFontSize(16);
+    doc.setTextColor(15, 23, 42);
+    doc.setFont('helvetica', 'bold');
+    doc.text(s.value, x + 4, boxY + 18);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 116, 139);
+    doc.text(s.sub, x + 4, boxY + 24);
+  });
+
+  // Exclusions note
+  if (exclusions.length > 0) {
+    doc.setFontSize(9);
+    doc.setTextColor(239, 68, 68);
+    doc.text('Active Exclusions: ' + exclusions.map(e => `${e.analyte}/${e.instrument}`).join(', '), 14, boxY + 38);
+  }
+
+  // --- Results Table ---
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text('Results Summary', 14, boxY + 48);
+
+  const tableHead = [
+    [
+      { content: 'Analyte', rowSpan: 2 },
+      { content: 'Lvl', rowSpan: 2 },
+      { content: 'AU/DxI-1', colSpan: 4, styles: { halign: 'center', fillColor: [59, 130, 246] } },
+      { content: 'AU/DxI-2', colSpan: 4, styles: { halign: 'center', fillColor: [139, 92, 246] } },
+      { content: 'AU/DxI-3', colSpan: 4, styles: { halign: 'center', fillColor: [6, 182, 212] } },
+      { content: 'AU/DxI-4', colSpan: 4, styles: { halign: 'center', fillColor: [245, 158, 11] } },
+      { content: 'Combined', colSpan: 4, styles: { halign: 'center', fillColor: [34, 197, 94] } },
+    ],
+    ['Mean','SD','CV%','n','Mean','SD','CV%','n','Mean','SD','CV%','n','Mean','SD','CV%','n','Mean','SD','CV%','n']
+  ];
+
+  const tableBody = resultsData.map(row => {
+    const r = [row.parameter, row.level];
+    for (const inst of instruments) {
+      const s = row[inst];
+      if (s && s.count > 0) {
+        r.push(s.mean.toFixed(2), s.sd.toFixed(2), s.cv.toFixed(2), s.count);
+      } else {
+        r.push('-', '-', '-', '-');
+      }
+    }
+    const c = row.combined;
+    if (c && c.count > 0) {
+      r.push(c.mean.toFixed(2), c.sd.toFixed(2), c.cv.toFixed(2), c.count);
+    } else {
+      r.push('-', '-', '-', '-');
+    }
+    return r;
+  });
+
+  doc.autoTable({
+    head: tableHead,
+    body: tableBody,
+    startY: boxY + 52,
+    theme: 'grid',
+    styles: { fontSize: 5.5, cellPadding: 1.2, halign: 'center', lineColor: [200, 200, 200], lineWidth: 0.1 },
+    headStyles: { fillColor: [30, 41, 59], textColor: 255, fontSize: 5.5, fontStyle: 'bold' },
+    columnStyles: { 0: { halign: 'left', cellWidth: 18 }, 1: { cellWidth: 7 } },
+    alternateRowStyles: { fillColor: [240, 245, 255] },
+    margin: { left: 6, right: 6 },
+    didDrawPage: function(data) {
+      // Footer on each page
+      doc.setFontSize(7);
+      doc.setTextColor(150);
+      doc.text(`QC Audit Report - ${today}`, 14, pageH - 5);
+      doc.text(`Page ${doc.internal.getNumberOfPages()}`, pageW - 25, pageH - 5);
+    }
+  });
+
+
+  doc.save(`QCAudit-Report-${new Date().toISOString().split('T')[0]}.pdf`);
+  } catch(err) {
+    console.error('PDF export error:', err);
+    alert('Error generating PDF: ' + err.message);
+  }
+}
+
+function exportXLSX() {
+  const wb = XLSX.utils.book_new();
+  const instruments = ['AU/DxI-1', 'AU/DxI-2', 'AU/DxI-3', 'AU/DxI-4'];
+  const subHeaders = ['Mean', 'SD', 'CV', 'n'];
+
+  // Build row data
+  const rows = [];
+
+  // Row 1: merged instrument group headers
+  const r1 = ['', '', 'AU/DxI-1', '', '', '', 'AU/DxI-2', '', '', '', 'AU/DxI-3', '', '', '', 'AU/DxI-4', '', '', '', 'Combined', '', '', ''];
+  rows.push(r1);
+
+  // Row 2: sub-headers
+  const r2 = ['Analyte', 'Level'];
+  for (let i = 0; i < 5; i++) r2.push('Mean', 'SD', 'CV', 'n');
+  rows.push(r2);
+
+  // Data rows
+  for (const row of resultsData) {
+    const r = [row.parameter, row.level];
+    for (const inst of instruments) {
+      const s = row[inst];
+      if (s && s.count > 0) {
+        r.push(+s.mean.toFixed(2), +s.sd.toFixed(2), +s.cv.toFixed(2), s.count);
+      } else {
+        r.push('', '', '', '');
+      }
+    }
+    const c = row.combined;
+    if (c && c.count > 0) {
+      r.push(+c.mean.toFixed(2), +c.sd.toFixed(2), +c.cv.toFixed(2), c.count);
+    } else {
+      r.push('', '', '', '');
+    }
+    rows.push(r);
+  }
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+
+  // Merge cells for instrument headers (row 1): C1:F1, G1:J1, K1:N1, O1:R1, S1:V1
+  ws['!merges'] = [
+    { s: { r: 0, c: 2 }, e: { r: 0, c: 5 } },   // C1:F1
+    { s: { r: 0, c: 6 }, e: { r: 0, c: 9 } },   // G1:J1
+    { s: { r: 0, c: 10 }, e: { r: 0, c: 13 } },  // K1:N1
+    { s: { r: 0, c: 14 }, e: { r: 0, c: 17 } },  // O1:R1
+    { s: { r: 0, c: 18 }, e: { r: 0, c: 21 } },  // S1:V1
+  ];
+
+  // Column widths matching original
+  ws['!cols'] = [
+    { wch: 13 }, // A - Analyte
+    { wch: 7 },  // B - Level
+    { wch: 9 }, { wch: 9 }, { wch: 9 }, { wch: 5 },  // C-F
+    { wch: 9 }, { wch: 9 }, { wch: 9 }, { wch: 5 },  // G-J
+    { wch: 9 }, { wch: 9 }, { wch: 9 }, { wch: 5 },  // K-N
+    { wch: 9 }, { wch: 9 }, { wch: 9 }, { wch: 5 },  // O-R
+    { wch: 9 }, { wch: 9 }, { wch: 9 }, { wch: 5 },  // S-V
+  ];
+
+  // Apply styling - dark header fill, white text, center align, borders
+  const darkFill = { fgColor: { rgb: '44546A' } };
+  const whiteFontBold = { bold: true, color: { rgb: 'FFFFFF' }, name: 'Calibri', sz: 11 };
+  const normalFont = { name: 'Calibri', sz: 11 };
+  const centerAlign = { horizontal: 'center', vertical: 'center' };
+  const medBorder = { style: 'medium', color: { rgb: '000000' } };
+  const thinBorder = { style: 'thin', color: { rgb: '000000' } };
+
+  // Style row 1 (instrument headers)
+  const instCols = [2, 6, 10, 14, 18]; // C, G, K, O, S
+  for (const col of instCols) {
+    const ref = XLSX.utils.encode_cell({ r: 0, c: col });
+    if (!ws[ref]) ws[ref] = { v: '', t: 's' };
+    ws[ref].s = {
+      fill: { type: 'pattern', patternType: 'solid', fgColor: { rgb: '44546A' } },
+      font: whiteFontBold,
+      alignment: centerAlign,
+      border: {
+        left: medBorder, right: medBorder, top: medBorder, bottom: medBorder
+      }
+    };
+  }
+
+  // Style row 2 (sub-headers)
+  for (let c = 0; c < 22; c++) {
+    const ref = XLSX.utils.encode_cell({ r: 1, c });
+    if (!ws[ref]) ws[ref] = { v: '', t: 's' };
+    const isGroupStart = [0, 2, 6, 10, 14, 18].includes(c);
+    const isGroupEnd = [1, 5, 9, 13, 17, 21].includes(c);
+    ws[ref].s = {
+      font: { bold: true, name: 'Calibri', sz: 11 },
+      alignment: centerAlign,
+      border: {
+        left: isGroupStart ? medBorder : thinBorder,
+        right: isGroupEnd ? medBorder : thinBorder,
+        top: medBorder,
+        bottom: medBorder
+      }
+    };
+  }
+
+  // Style data rows
+  for (let r = 2; r < rows.length; r++) {
+    const isEvenGroup = r % 2 === 0;
+    for (let c = 0; c < 22; c++) {
+      const ref = XLSX.utils.encode_cell({ r, c });
+      if (!ws[ref]) ws[ref] = { v: '', t: 's' };
+      const isGroupStart = [0, 2, 6, 10, 14, 18].includes(c);
+      const isGroupEnd = [1, 5, 9, 13, 17, 21].includes(c);
+      const isNCol = [5, 9, 13, 17, 21].includes(c);
+      ws[ref].s = {
+        font: normalFont,
+        alignment: c >= 2 ? centerAlign : { horizontal: c === 0 ? 'left' : 'center', vertical: 'center' },
+        border: {
+          left: isGroupStart ? medBorder : null,
+          right: isGroupEnd ? medBorder : null,
+          top: null,
+          bottom: null
+        },
+        numFmt: isNCol ? '0' : (c >= 2 ? '0.00' : undefined),
+        fill: isEvenGroup ? { type: 'pattern', patternType: 'solid', fgColor: { rgb: 'D6E4F0' } } : undefined
+      };
+    }
+  }
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Results');
+
+  // Write and download
+  XLSX.writeFile(wb, `QCAudit-${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+function exportCSV() {
+  const instruments = ['AU/DxI-1', 'AU/DxI-2', 'AU/DxI-3', 'AU/DxI-4'];
+  let csv = 'Analyte,Level';
+  for (const inst of [...instruments, 'Combined']) {
+    csv += `,${inst} Mean,${inst} SD,${inst} CV%,${inst} n`;
+  }
+  csv += '\n';
+
+  for (const row of resultsData) {
+    csv += `${row.parameter},${row.level}`;
+    for (const inst of instruments) {
+      const s = row[inst];
+      csv += `,${s.mean.toFixed(2)},${s.sd.toFixed(2)},${s.cv.toFixed(2)},${s.count}`;
+    }
+    const c = row.combined;
+    csv += `,${c.mean.toFixed(2)},${c.sd.toFixed(2)},${c.cv.toFixed(2)},${c.count}`;
+    csv += '\n';
+  }
+
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `QCAudit-${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// =============================================
+// EVENT HANDLERS
+// =============================================
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const btnProcess = document.getElementById('btnProcess');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+function handleFiles(files) {
+  for (const f of files) {
+    if (f.name.endsWith('.csv') && !uploadedFiles.find(u => u.name === f.name)) {
+      uploadedFiles.push(f);
+    }
+  }
+  renderFileList();
+  btnProcess.disabled = uploadedFiles.length === 0;
+}
+
+function renderFileList() {
+  document.getElementById('fileList').innerHTML = uploadedFiles.map((f, i) =>
+    `<div class="file-chip">
+      📄 ${f.name} (${(f.size / 1024).toFixed(0)} KB)
+      <span class="remove" onclick="removeFile(${i})">✕</span>
+    </div>`
+  ).join('');
+}
+
+function removeFile(idx) {
+  uploadedFiles.splice(idx, 1);
+  renderFileList();
+  btnProcess.disabled = uploadedFiles.length === 0;
+}
+
+btnProcess.addEventListener('click', async () => {
+  const overlay = document.getElementById('processingOverlay');
+  overlay.classList.add('active');
+
+  document.getElementById('processingText').textContent = 'Reading CSV files...';
+
+  await new Promise(r => setTimeout(r, 50));
+
+  try {
+    rawData = [];
+    for (const file of uploadedFiles) {
+      const text = await file.text();
+      rawData.push(...parseCSV(text));
+    }
+
+    document.getElementById('processingText').textContent = `Processing ${rawData.length.toLocaleString()} records...`;
+    await new Promise(r => setTimeout(r, 50));
+
+    processedData = processData(rawData);
+
+    document.getElementById('processingText').textContent = 'Computing statistics...';
+    await new Promise(r => setTimeout(r, 50));
+
+    resultsData = buildResults(processedData);
+
+    // Populate protocol filter
+    const protocols = [...new Set(processedData.map(r => r.protocol))].sort();
+    document.getElementById('filterProtocol').innerHTML =
+      '<option value="all">All Protocols</option>' +
+      protocols.map(p => `<option value="${p}">${p}</option>`).join('');
+
+    // Populate analyte filter
+    const analytes = [...new Set(processedData.map(r => r.parameter))].sort();
+    document.getElementById('filterAnalyte').innerHTML =
+      '<option value="all">All Analytes</option>' +
+      analytes.map(a => `<option value="${a}">${a}</option>`).join('');
+
+    // Populate date filters with unique dates from data
+    const uniqueDates = [...new Set(processedData.map(r => {
+      const d = parseDate(r.date);
+      return d.getTime() > 0 ? d.toISOString().split('T')[0] : null;
+    }).filter(Boolean))].sort();
+    document.getElementById('filterDateFrom').innerHTML =
+      '<option value="">Earliest</option>' +
+      uniqueDates.map(d => `<option value="${d}">${d}</option>`).join('');
+    document.getElementById('filterDateTo').innerHTML =
+      '<option value="">Latest</option>' +
+      uniqueDates.map(d => `<option value="${d}">${d}</option>`).join('');
+
+    document.getElementById('processingText').textContent = 'Rendering...';
+    await new Promise(r => setTimeout(r, 50));
+
+    renderStats();
+    renderResultsTable();
+    renderRawData();
+    populateChartFilters();
+    populateExclusionAnalytes();
+    renderExclusions();
+
+    document.getElementById('uploadSection').classList.add('hidden');
+    document.getElementById('resultsSection').classList.remove('hidden');
+    document.getElementById('btnExportCSV').disabled = false;
+    document.getElementById('btnExportXLSX').disabled = false;
+    document.getElementById('btnReport').disabled = false;
+    document.getElementById('btnSaveReport').disabled = false;
+    document.getElementById('btnReset').disabled = false;
+
+  } catch (err) {
+    alert('Error processing data: ' + err.message);
+    console.error(err);
+  }
+
+  overlay.classList.remove('active');
+});
+
+// Tabs
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const target = tab.dataset.tab;
+    ['results', 'charts', 'rawdata'].forEach(t => {
+      document.getElementById(`tab-${t}`).classList.toggle('hidden', t !== target);
+    });
+    if (target === 'charts' && processedData.length) {
+      setTimeout(() => { renderLJChart(); renderCVChart(); }, 100);
+    }
+  });
+});
+
+// Filters
+document.getElementById('filterAnalyte').addEventListener('change', renderResultsTable);
+document.getElementById('filterSearch').addEventListener('input', renderResultsTable);
+document.getElementById('filterCV').addEventListener('change', renderResultsTable);
+document.getElementById('filterStatus').addEventListener('change', () => {
+  const status = document.getElementById('filterStatus').value;
+  if (status === 'all') {
+    processedData = processData(rawData);
+    // Re-include rejected
+    let all = rawData.filter(row => {
+      if (EXCLUDED_PROTOCOLS.has(row.protocol)) return false;
+      if (row.protocol.toLowerCase().includes('eval')) return false;
+      return true;
+    }).map(row => {
+      const mapped = INSTRUMENTS_MAP[row.instrument];
+      return { ...row, instrument: mapped || row.instrument };
+    }).map(row => {
+      if (LEVEL_OVERRIDE_PROTOCOLS.has(row.protocol.trim())) return { ...row, level: '4' };
+      return row;
+    }).filter(r => ['AU/DxI-1','AU/DxI-2','AU/DxI-3','AU/DxI-4'].includes(r.instrument));
+    processedData = all;
+  } else if (status === 'rejected') {
+    let all = rawData.filter(row => {
+      if (EXCLUDED_PROTOCOLS.has(row.protocol)) return false;
+      if (row.protocol.toLowerCase().includes('eval')) return false;
+      return row.status === 'Manually rejected';
+    }).map(row => {
+      const mapped = INSTRUMENTS_MAP[row.instrument];
+      return { ...row, instrument: mapped || row.instrument };
+    }).filter(r => ['AU/DxI-1','AU/DxI-2','AU/DxI-3','AU/DxI-4'].includes(r.instrument));
+    processedData = all;
+  } else {
+    processedData = processData(rawData);
+  }
+  resultsData = buildResults(processedData);
+  renderStats();
+  renderResultsTable();
+  renderRawData();
+});
+function applyFilters() {
+  const prot = document.getElementById('filterProtocol').value;
+  const dateFrom = document.getElementById('filterDateFrom').value;
+  const dateTo = document.getElementById('filterDateTo').value;
+
+  let base = processData(rawData);
+  if (prot !== 'all') base = base.filter(r => r.protocol === prot);
+
+  if (dateFrom) {
+    const from = new Date(dateFrom);
+    base = base.filter(r => parseDate(r.date) >= from);
+  }
+  if (dateTo) {
+    const to = new Date(dateTo);
+    to.setHours(23, 59, 59, 999);
+    base = base.filter(r => parseDate(r.date) <= to);
+  }
+
+  // Apply instrument exclusions per analyte
+  if (exclusions.length > 0) {
+    base = base.filter(r =>
+      !exclusions.some(e => e.analyte === r.parameter && e.instrument === r.instrument)
+    );
+  }
+
+  processedData = base;
+  resultsData = buildResults(processedData);
+  renderStats();
+  renderResultsTable();
+  renderRawData();
+}
+
+document.getElementById('filterProtocol').addEventListener('change', applyFilters);
+document.getElementById('filterDateFrom').addEventListener('change', applyFilters);
+document.getElementById('filterDateTo').addEventListener('change', applyFilters);
+document.getElementById('rawSearch').addEventListener('input', () => { rawPage = 0; renderRawData(); });
+
+// Chart filter handlers
+document.getElementById('chartAnalyte').addEventListener('change', renderLJChart);
+document.getElementById('chartLevel').addEventListener('change', renderLJChart);
+document.getElementById('chartInstruments').addEventListener('change', renderLJChart);
+
+// =============================================
+// EXCLUSION PANEL
+// =============================================
+let exclusions = []; // [{analyte, instrument}]
+
+document.getElementById('exclusionToggle').addEventListener('click', () => {
+  document.getElementById('exclusionBody').classList.toggle('open');
+  document.getElementById('exclusionArrow').classList.toggle('open');
+});
+
+document.getElementById('btnAddExclusion').addEventListener('click', () => {
+  const analyte = document.getElementById('excAnalyte').value;
+  const instrument = document.getElementById('excInstrument').value;
+  if (!analyte || !instrument) return;
+  const exists = exclusions.some(e => e.analyte === analyte && e.instrument === instrument);
+  if (exists) return;
+  exclusions.push({ analyte, instrument });
+  renderExclusions();
+  recomputeWithExclusions();
+});
+
+function renderExclusions() {
+  const list = document.getElementById('exclusionList');
+  const count = document.getElementById('exclusionCount');
+  if (exclusions.length === 0) {
+    list.innerHTML = '<span style="font-size:12px;color:var(--text-dim)">No exclusions set</span>';
+    count.classList.add('hidden');
+  } else {
+    count.textContent = exclusions.length;
+    count.classList.remove('hidden');
+    list.innerHTML = exclusions.map((e, i) =>
+      `<div class="exclusion-chip">
+        ${e.analyte} / ${e.instrument}
+        <span class="remove-exc" onclick="removeExclusion(${i})">&#10005;</span>
+      </div>`
+    ).join('');
+  }
+}
+
+function removeExclusion(idx) {
+  exclusions.splice(idx, 1);
+  renderExclusions();
+  recomputeWithExclusions();
+}
+
+function recomputeWithExclusions() {
+  // Re-run the standard filter pipeline then remove excluded data
+  applyFilters();
+}
+
+function populateExclusionAnalytes() {
+  const analytes = [...new Set(processedData.map(r => r.parameter))].sort();
+  document.getElementById('excAnalyte').innerHTML =
+    analytes.map(a => `<option value="${a}">${a}</option>`).join('');
+}
+
+// =============================================
+// DETAIL MODAL - Click any value to see how it was calculated
+// =============================================
+const modalOverlay = document.getElementById('modalOverlay');
+const modalBody = document.getElementById('modalBody');
+const modalTitle = document.getElementById('modalTitle');
+
+document.getElementById('modalClose').addEventListener('click', () => modalOverlay.classList.remove('active'));
+modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) modalOverlay.classList.remove('active'); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') modalOverlay.classList.remove('active'); });
+
+document.getElementById('resultsTable').addEventListener('click', e => {
+  const td = e.target.closest('td.clickable');
+  if (!td) return;
+
+  const param = td.dataset.param;
+  const level = td.dataset.level;
+  const inst = td.dataset.inst;
+  const stat = td.dataset.stat;
+
+  // Get the raw data points that produced this value
+  let points;
+  if (inst === 'combined') {
+    points = processedData.filter(r =>
+      r.parameter === param && r.level === level &&
+      ['AU/DxI-1','AU/DxI-2','AU/DxI-3','AU/DxI-4'].includes(r.instrument)
+    );
+  } else {
+    points = processedData.filter(r =>
+      r.parameter === param && r.level === level && r.instrument === inst
+    );
+  }
+
+  // Sort by date
+  points.sort((a, b) => parseDate(a.date) - parseDate(b.date));
+
+  const values = points.map(r => r.value);
+  const n = values.length;
+  const sum = values.reduce((a, b) => a + b, 0);
+  const mean = n > 0 ? sum / n : 0;
+  const variance = n > 1 ? values.reduce((a, b) => a + (b - mean) ** 2, 0) / (n - 1) : 0;
+  const sd = Math.sqrt(variance);
+  const cv = mean !== 0 ? Math.abs((sd / mean) * 100) : 0;
+
+  const statLabels = { mean: 'Mean', sd: 'Standard Deviation', cv: 'CV%', n: 'Count (n)' };
+  const instLabel = inst === 'combined' ? 'All Instruments Combined' : inst;
+
+  modalTitle.textContent = `${param} (Level ${level}) — ${instLabel} — ${statLabels[stat]}`;
+
+  // Build summary cards
+  let html = `<div class="summary-row">
+    <div class="summary-item"><div class="s-label">Mean</div><div class="s-value" style="color:var(--success)">${mean.toFixed(4)}</div></div>
+    <div class="summary-item"><div class="s-label">SD</div><div class="s-value" style="color:var(--warning)">${sd.toFixed(4)}</div></div>
+    <div class="summary-item"><div class="s-label">CV%</div><div class="s-value" style="color:var(--accent)">${cv.toFixed(2)}%</div></div>
+    <div class="summary-item"><div class="s-label">n</div><div class="s-value" style="color:#a78bfa">${n}</div></div>
+  </div>`;
+
+  // Build formula explanation
+  html += `<div class="calc-section"><h4>Formula Breakdown</h4><div class="calc-formula">`;
+
+  if (stat === 'mean') {
+    const valStr = values.length <= 12
+      ? values.map(v => v.toFixed(2)).join(' + ')
+      : values.slice(0, 6).map(v => v.toFixed(2)).join(' + ') + ' + ... + ' + values.slice(-2).map(v => v.toFixed(2)).join(' + ');
+    html += `<span class="label">Mean</span> <span class="operator">=</span> <span class="label">Sum / n</span><br>`;
+    html += `<span class="label">Sum</span> <span class="operator">=</span> <span class="value">${valStr}</span><br>`;
+    html += `<span class="label">Sum</span> <span class="operator">=</span> <span class="value">${sum.toFixed(4)}</span><br>`;
+    html += `<span class="label">n</span> <span class="operator">=</span> <span class="value">${n}</span><br>`;
+    html += `<span class="label">Mean</span> <span class="operator">=</span> <span class="value">${sum.toFixed(4)}</span> <span class="operator">/</span> <span class="value">${n}</span> <span class="operator">=</span> <span class="result">${mean.toFixed(4)}</span>`;
+  } else if (stat === 'sd') {
+    html += `<span class="label">SD</span> <span class="operator">=</span> <span class="label">sqrt( &Sigma;(x<sub>i</sub> - mean)&sup2; / (n-1) )</span><br>`;
+    html += `<span class="label">Mean</span> <span class="operator">=</span> <span class="value">${mean.toFixed(4)}</span><br>`;
+    html += `<span class="label">n</span> <span class="operator">=</span> <span class="value">${n}</span><br>`;
+    const deviations = values.slice(0, 6).map(v => `(${v.toFixed(2)} - ${mean.toFixed(2)})&sup2;`);
+    html += `<span class="label">&Sigma;(x<sub>i</sub> - mean)&sup2;</span> <span class="operator">=</span> <span class="value">${deviations.join(' + ')}${values.length > 6 ? ' + ...' : ''}</span><br>`;
+    html += `<span class="label">&Sigma;(x<sub>i</sub> - mean)&sup2;</span> <span class="operator">=</span> <span class="value">${(variance * (n - 1)).toFixed(4)}</span><br>`;
+    html += `<span class="label">Variance</span> <span class="operator">=</span> <span class="value">${(variance * (n - 1)).toFixed(4)}</span> <span class="operator">/</span> <span class="value">${n - 1}</span> <span class="operator">=</span> <span class="value">${variance.toFixed(4)}</span><br>`;
+    html += `<span class="label">SD</span> <span class="operator">=</span> <span class="label">sqrt(</span><span class="value">${variance.toFixed(4)}</span><span class="label">)</span> <span class="operator">=</span> <span class="result">${sd.toFixed(4)}</span>`;
+  } else if (stat === 'cv') {
+    html += `<span class="label">CV%</span> <span class="operator">=</span> <span class="label">(SD / Mean) &times; 100</span><br>`;
+    html += `<span class="label">SD</span> <span class="operator">=</span> <span class="value">${sd.toFixed(4)}</span><br>`;
+    html += `<span class="label">Mean</span> <span class="operator">=</span> <span class="value">${mean.toFixed(4)}</span><br>`;
+    html += `<span class="label">CV%</span> <span class="operator">=</span> (<span class="value">${sd.toFixed(4)}</span> <span class="operator">/</span> <span class="value">${mean.toFixed(4)}</span>) <span class="operator">&times;</span> <span class="value">100</span> <span class="operator">=</span> <span class="result">${cv.toFixed(2)}%</span>`;
+  } else if (stat === 'n') {
+    html += `<span class="label">Count (n)</span> <span class="operator">=</span> <span class="label">Number of data points matching:</span><br>`;
+    html += `<span class="label">  Parameter</span> <span class="operator">=</span> <span class="value">${param}</span><br>`;
+    html += `<span class="label">  Level</span> <span class="operator">=</span> <span class="value">${level}</span><br>`;
+    html += `<span class="label">  Instrument</span> <span class="operator">=</span> <span class="value">${instLabel}</span><br>`;
+    html += `<span class="label">  Status</span> <span class="operator">=</span> <span class="value">Accepted / Manually accepted</span><br>`;
+    html += `<span class="label">n</span> <span class="operator">=</span> <span class="result">${n}</span>`;
+  }
+
+  html += `</div></div>`;
+
+  // Data points table
+  html += `<div class="calc-section"><h4>All ${n} Data Points</h4>`;
+  html += `<div style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:6px">`;
+  html += `<table class="data-points-table"><thead><tr>`;
+  html += `<th>#</th><th>Date</th><th>Value</th><th>Deviation</th>`;
+  if (inst === 'combined') html += `<th>Instrument</th>`;
+  html += `<th>Protocol</th><th>Status</th><th>Sample ID</th>`;
+  html += `</tr></thead><tbody>`;
+
+  points.forEach((p, i) => {
+    const dev = p.value - mean;
+    const sdAway = sd > 0 ? Math.abs(dev / sd) : 0;
+    const highlight = sdAway > 2 ? ' class="highlight-row"' : '';
+    html += `<tr${highlight}>`;
+    html += `<td>${i + 1}</td>`;
+    html += `<td>${p.date}</td>`;
+    html += `<td><b>${p.value}</b></td>`;
+    html += `<td>${dev >= 0 ? '+' : ''}${dev.toFixed(3)} (${sdAway.toFixed(1)} SD)</td>`;
+    if (inst === 'combined') html += `<td>${p.instrument}</td>`;
+    html += `<td>${p.protocol}</td>`;
+    html += `<td>${p.status}</td>`;
+    html += `<td>${p.sampleId}</td>`;
+    html += `</tr>`;
+  });
+
+  html += `</tbody></table></div></div>`;
+
+  modalBody.innerHTML = html;
+  modalOverlay.classList.add('active');
+});
+
+// Export & Reset
+document.getElementById('btnReport').addEventListener('click', exportPDF);
+document.getElementById('btnExportXLSX').addEventListener('click', exportXLSX);
+document.getElementById('btnExportCSV').addEventListener('click', exportCSV);
+document.getElementById('btnReset').addEventListener('click', () => {
+  rawData = [];
+  processedData = [];
+  resultsData = [];
+  uploadedFiles = [];
+  document.getElementById('uploadSection').classList.remove('hidden');
+  document.getElementById('resultsSection').classList.add('hidden');
+  document.getElementById('btnExportCSV').disabled = true;
+  document.getElementById('btnExportXLSX').disabled = true;
+  document.getElementById('btnReport').disabled = true;
+  document.getElementById('btnSaveReport').disabled = true;
+  document.getElementById('btnReset').disabled = true;
+  document.getElementById('fileList').innerHTML = '';
+  btnProcess.disabled = true;
+  if (ljChartInstance) ljChartInstance.destroy();
+  if (cvChartInstance) cvChartInstance.destroy();
+});
+
+// =============================================
+// SAVE / LOAD REPORTS (Neon backend)
+// =============================================
+const loadModalOverlay = document.getElementById('loadModalOverlay');
+const loadModalBody = document.getElementById('loadModalBody');
+
+document.getElementById('loadModalClose').addEventListener('click', () => loadModalOverlay.classList.remove('active'));
+loadModalOverlay.addEventListener('click', e => { if (e.target === loadModalOverlay) loadModalOverlay.classList.remove('active'); });
+
+// Save Report
+document.getElementById('btnSaveReport').addEventListener('click', async () => {
+  const name = prompt('Enter a name for this report:');
+  if (!name) return;
+
+  const btn = document.getElementById('btnSaveReport');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  try {
+    const resp = await fetch('/api/reports', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        raw_data: processedData,
+        results_data: resultsData,
+        exclusions,
+        filters: {
+          protocol: document.getElementById('filterProtocol').value,
+          dateFrom: document.getElementById('filterDateFrom').value,
+          dateTo: document.getElementById('filterDateTo').value,
+        }
+      })
+    });
+    const data = await resp.json();
+    if (resp.ok) {
+      alert('Report saved: ' + data.name);
+    } else {
+      alert('Error saving: ' + (data.error || 'Unknown error'));
+    }
+  } catch (err) {
+    alert('Error saving report: ' + err.message);
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Save Report';
+});
+
+// Load Report - open modal
+document.getElementById('btnLoadReport').addEventListener('click', async () => {
+  loadModalOverlay.classList.add('active');
+  loadModalBody.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-dim)">Loading...</div>';
+
+  try {
+    const resp = await fetch('/api/reports');
+    const reports = await resp.json();
+
+    if (!resp.ok) {
+      loadModalBody.innerHTML = `<div style="color:var(--danger);padding:20px">Error: ${reports.error || 'Could not load reports'}</div>`;
+      return;
+    }
+
+    if (reports.length === 0) {
+      loadModalBody.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-dim)">No saved reports yet. Process some data and click Save Report.</div>';
+      return;
+    }
+
+    loadModalBody.innerHTML = `
+      <table class="data-points-table" style="width:100%">
+        <thead><tr><th>Name</th><th>Date Saved</th><th>Results</th><th></th><th></th></tr></thead>
+        <tbody>
+          ${reports.map(r => `
+            <tr>
+              <td style="text-align:left;font-weight:600">${r.name}</td>
+              <td>${new Date(r.created_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })}</td>
+              <td>${r.result_count || 0} rows</td>
+              <td><button class="btn btn-primary" style="padding:4px 12px;font-size:12px" onclick="loadReport(${r.id})">Load</button></td>
+              <td><button class="btn btn-danger" style="padding:4px 12px;font-size:12px" onclick="deleteReport(${r.id})">Delete</button></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  } catch (err) {
+    loadModalBody.innerHTML = `<div style="color:var(--danger);padding:20px">Error connecting to server: ${err.message}<br><br><span style="color:var(--text-dim);font-size:12px">Make sure the database is set up. Visit /api/setup first.</span></div>`;
+  }
+});
+
+async function loadReport(id) {
+  loadModalBody.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-dim)">Loading report...</div>';
+
+  try {
+    const resp = await fetch(`/api/reports/${id}`);
+    const report = await resp.json();
+
+    if (!resp.ok) {
+      alert('Error: ' + (report.error || 'Could not load report'));
+      return;
+    }
+
+    // Restore state
+    processedData = report.raw_data || [];
+    resultsData = report.results_data || [];
+    exclusions = report.exclusions || [];
+    rawData = processedData; // Use processed as raw since that's what we saved
+
+    // Restore UI
+    renderStats();
+    renderResultsTable();
+    renderRawData();
+    populateChartFilters();
+    populateExclusionAnalytes();
+    renderExclusions();
+
+    // Populate filters
+    const protocols = [...new Set(processedData.map(r => r.protocol))].sort();
+    document.getElementById('filterProtocol').innerHTML =
+      '<option value="all">All Protocols</option>' +
+      protocols.map(p => `<option value="${p}">${p}</option>`).join('');
+
+    const analytes = [...new Set(processedData.map(r => r.parameter))].sort();
+    document.getElementById('filterAnalyte').innerHTML =
+      '<option value="all">All Analytes</option>' +
+      analytes.map(a => `<option value="${a}">${a}</option>`).join('');
+
+    const uniqueDates = [...new Set(processedData.map(r => {
+      const d = parseDate(r.date);
+      return d.getTime() > 0 ? d.toISOString().split('T')[0] : null;
+    }).filter(Boolean))].sort();
+    document.getElementById('filterDateFrom').innerHTML =
+      '<option value="">Earliest</option>' + uniqueDates.map(d => `<option value="${d}">${d}</option>`).join('');
+    document.getElementById('filterDateTo').innerHTML =
+      '<option value="">Latest</option>' + uniqueDates.map(d => `<option value="${d}">${d}</option>`).join('');
+
+    // Show results section
+    document.getElementById('uploadSection').classList.add('hidden');
+    document.getElementById('resultsSection').classList.remove('hidden');
+    document.getElementById('btnExportCSV').disabled = false;
+    document.getElementById('btnExportXLSX').disabled = false;
+    document.getElementById('btnReport').disabled = false;
+    document.getElementById('btnSaveReport').disabled = false;
+    document.getElementById('btnReset').disabled = false;
+
+    loadModalOverlay.classList.remove('active');
+    alert('Report loaded: ' + report.name);
+  } catch (err) {
+    alert('Error loading report: ' + err.message);
+  }
+}
+
+async function deleteReport(id) {
+  if (!confirm('Delete this report permanently?')) return;
+
+  try {
+    const resp = await fetch(`/api/reports/${id}`, { method: 'DELETE' });
+    if (resp.ok) {
+      document.getElementById('btnLoadReport').click(); // Refresh list
+    } else {
+      const data = await resp.json();
+      alert('Error: ' + (data.error || 'Could not delete'));
+    }
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+</script>
+
+</body>
+</html>

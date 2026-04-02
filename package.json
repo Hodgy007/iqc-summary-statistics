@@ -1,0 +1,8 @@
+{
+  "name": "iqc-summary-statistics",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@neondatabase/serverless": "^0.9.0"
+  }
+}
