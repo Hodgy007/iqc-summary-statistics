@@ -856,7 +856,7 @@
     </div>
     <div class="file-list" id="fileList"></div>
     <div style="text-align:center;margin-top:16px">
-      <button class="btn btn-primary" id="btnProcess" disabled style="padding:12px 32px;font-size:15px">Process Data</button>
+      <button class="btn btn-primary" id="btnProcess" disabled style="display:none">Process Data</button>
     </div>
   </div>
 
@@ -2110,7 +2110,9 @@ function handleFiles(files) {
     }
   }
   renderFileList();
-  btnProcess.disabled = uploadedFiles.length === 0;
+  if (uploadedFiles.length > 0) {
+    btnProcess.click();
+  }
 }
 
 function renderFileList() {
