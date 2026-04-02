@@ -12,7 +12,10 @@ export default async function handler(req, res) {
     try {
       const rows = await sql`
         SELECT id, name, created_at,
-          jsonb_array_length(COALESCE(results_data, '[]'::jsonb)) as result_count
+          CASE
+            WHEN jsonb_typeof(results_data) = 'array' THEN jsonb_array_length(results_data)
+            ELSE 0
+          END as result_count
         FROM reports
         ORDER BY created_at DESC
       `;
