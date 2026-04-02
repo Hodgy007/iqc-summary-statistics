@@ -614,6 +614,63 @@
 <div class="main-content">
   <!-- Upload Zone -->
   <div id="uploadSection">
+
+    <!-- How to Use Guide -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:24px 28px;margin-bottom:24px">
+      <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="document.getElementById('guideBody').classList.toggle('hidden');this.querySelector('.guide-arrow').classList.toggle('open')">
+        <h2 style="font-size:16px;font-weight:600">How to Use This Dashboard</h2>
+        <span class="guide-arrow" style="font-size:12px;color:var(--text-dim);transition:transform 0.2s">&#9660;</span>
+      </div>
+      <div id="guideBody" style="margin-top:16px;font-size:13px;line-height:1.8;color:var(--text-dim)">
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:20px;margin-bottom:16px">
+
+          <div style="background:var(--bg);border-radius:8px;padding:16px">
+            <div style="font-size:14px;font-weight:600;color:var(--accent);margin-bottom:8px">1. Import Data</div>
+            <ul style="padding-left:18px">
+              <li>Export your QC data from your instrument software as a <strong style="color:var(--text)">semicolon-delimited CSV</strong> file</li>
+              <li>Drag and drop one or more CSV files onto the upload area below, or click to browse</li>
+              <li>Multiple files will be merged automatically</li>
+              <li>Click <strong style="color:var(--text)">Process Data</strong> to begin</li>
+            </ul>
+          </div>
+
+          <div style="background:var(--bg);border-radius:8px;padding:16px">
+            <div style="font-size:14px;font-weight:600;color:var(--accent);margin-bottom:8px">2. Review Results</div>
+            <ul style="padding-left:18px">
+              <li>The <strong style="color:var(--text)">Results Summary</strong> tab shows Mean, SD, CV%, and n for each analyte across all four instruments (AU/DxI-1 to 4) plus a combined column</li>
+              <li>CV% is colour-coded: <span style="color:#22c55e">green</span> (&lt;5%), <span style="color:#f59e0b">amber</span> (5-10%), <span style="color:#ef4444">red</span> (&gt;10%)</li>
+              <li><strong style="color:var(--text)">Click any value</strong> to see the full calculation breakdown and all data points used</li>
+            </ul>
+          </div>
+
+          <div style="background:var(--bg);border-radius:8px;padding:16px">
+            <div style="font-size:14px;font-weight:600;color:var(--accent);margin-bottom:8px">3. Filter &amp; Refine</div>
+            <ul style="padding-left:18px">
+              <li>Use the <strong style="color:var(--text)">Analyte</strong>, <strong style="color:var(--text)">Protocol</strong>, and <strong style="color:var(--text)">Date Range</strong> filters to narrow results</li>
+              <li>Open the <strong style="color:var(--text)">Instrument Exclusions</strong> panel to exclude a specific instrument for a single analyte</li>
+              <li>The <strong style="color:var(--text)">Charts</strong> tab shows Levey-Jennings control charts with SD lines and a CV% comparison bar chart</li>
+            </ul>
+          </div>
+
+          <div style="background:var(--bg);border-radius:8px;padding:16px">
+            <div style="font-size:14px;font-weight:600;color:var(--accent);margin-bottom:8px">4. Export &amp; Save</div>
+            <ul style="padding-left:18px">
+              <li><strong style="color:var(--text)">Export XLSX</strong> — formatted Excel file matching the original QC Audit template layout</li>
+              <li><strong style="color:var(--text)">Export CSV</strong> — plain CSV for further analysis</li>
+              <li><strong style="color:var(--text)">Create Report (PDF)</strong> — generates a PDF with summary stats and results table</li>
+              <li><strong style="color:var(--text)">Save Report</strong> — saves to the database so you can reload it later via <strong style="color:var(--text)">Load Report</strong></li>
+            </ul>
+          </div>
+
+        </div>
+
+        <div style="background:var(--bg);border-radius:8px;padding:14px 16px;font-size:12px">
+          <strong style="color:var(--text)">Expected CSV format:</strong> Semicolon-delimited with columns: Protocol name; Instrument; Parameter; Level; Date; Value; Target; SD; Status; Message; User comment; User; Sample ID
+        </div>
+      </div>
+    </div>
+
     <div class="upload-zone" id="dropZone">
       <div class="icon">📂</div>
       <h2>Drop QC Export CSV Files Here</h2>
