@@ -1445,22 +1445,31 @@ function buildResults(data) {
 // UI RENDERING
 // =============================================
 function renderStats() {
-  const protocols = new Set(processedData.map(r => r.protocol));
-  const parameters = new Set(processedData.map(r => r.parameter));
-  const dateRange = processedData.reduce((acc, r) => {
-    if (r.date) {
-      if (!acc.min || r.date < acc.min) acc.min = r.date;
-      if (!acc.max || r.date > acc.max) acc.max = r.date;
-    }
-    return acc;
-  }, { min: '', max: '' });
+  let minDate = 'N/A';
+  let maxDate = 'N/A';
 
-  const rejectedCount = rawData.filter(r => r.status === 'Manually rejected').length;
+  if (processedData.length > 0) {
+    const dateRange = processedData.reduce((acc, r) => {
+      if (r.date) {
+        if (!acc.min || r.date < acc.min) acc.min = r.date;
+        if (!acc.max || r.date > acc.max) acc.max = r.date;
+      }
+      return acc;
+    }, { min: '', max: '' });
+    minDate = dateRange.min ? dateRange.min.substring(0, 10) : 'N/A';
+    maxDate = dateRange.max ? dateRange.max.substring(0, 10) : 'N/A';
+  } else {
+    // Try to get from saved filter dropdowns
+    const fromEl = document.getElementById('filterDateFrom');
+    const toEl = document.getElementById('filterDateTo');
+    if (fromEl && fromEl.value) minDate = fromEl.value;
+    if (toEl && toEl.value) maxDate = toEl.value;
+  }
 
   document.getElementById('statsBar').innerHTML = `
     <div class="stat-card" style="max-width:300px">
       <div class="label">Date Range</div>
-      <div class="value" style="font-size:14px">${dateRange.min ? dateRange.min.substring(0, 10) : 'N/A'} — ${dateRange.max ? dateRange.max.substring(0, 10) : 'N/A'}</div>
+      <div class="value" style="font-size:14px">${minDate} — ${maxDate}</div>
     </div>
   `;
 }
@@ -2535,6 +2544,8 @@ document.getElementById('btnSaveReport').addEventListener('click', async () => {
           protocol: document.getElementById('filterProtocol').value,
           dateFrom: document.getElementById('filterDateFrom').value,
           dateTo: document.getElementById('filterDateTo').value,
+          dateRangeMin: processedData.reduce((min, r) => (!min || r.date < min) ? r.date : min, '').substring(0, 10),
+          dateRangeMax: processedData.reduce((max, r) => (!max || r.date > max) ? r.date : max, '').substring(0, 10),
         }
       })
     });
@@ -2609,34 +2620,44 @@ async function loadReport(id) {
     processedData = report.raw_data || [];
     rawData = processedData;
     exclusions = report.exclusions || [];
+    const savedFilters = report.filters || {};
 
     // Restore UI
     renderStats();
     renderResultsTable();
     renderRawData();
-    populateChartFilters();
     populateExclusionAnalytes();
     renderExclusions();
 
-    // Populate filters
-    const protocols = [...new Set(processedData.map(r => r.protocol))].sort();
-    document.getElementById('filterProtocol').innerHTML =
-      '<option value="all">All Protocols</option>' +
-      protocols.map(p => `<option value="${p}">${p}</option>`).join('');
-
-    const analytes = [...new Set(processedData.map(r => r.parameter))].sort();
+    // Populate analyte filter from resultsData
+    const analytes = [...new Set(resultsData.map(r => r.parameter))].sort();
     document.getElementById('filterAnalyte').innerHTML =
       '<option value="all">All Analytes</option>' +
       analytes.map(a => `<option value="${a}">${a}</option>`).join('');
 
-    const uniqueDates = [...new Set(processedData.map(r => {
-      const d = parseDate(r.date);
-      return d.getTime() > 0 ? d.toISOString().split('T')[0] : null;
-    }).filter(Boolean))].sort();
+    // Populate chart filters from resultsData
+    const chartParams = document.getElementById('chartAnalyte');
+    if (chartParams) chartParams.innerHTML = analytes.map(p => `<option value="${p}">${p}</option>`).join('');
+    const levels = [...new Set(resultsData.map(r => r.level))].sort();
+    const chartLevels = document.getElementById('chartLevel');
+    if (chartLevels) chartLevels.innerHTML = levels.map(l => `<option value="${l}">${l}</option>`).join('');
+
+    // Show saved date range and protocol if available
+    document.getElementById('filterProtocol').innerHTML = '<option value="all">All Protocols</option>';
+    const dateMin = savedFilters.dateRangeMin || savedFilters.dateFrom || '';
+    const dateMax = savedFilters.dateRangeMax || savedFilters.dateTo || '';
     document.getElementById('filterDateFrom').innerHTML =
-      '<option value="">Earliest</option>' + uniqueDates.map(d => `<option value="${d}">${d}</option>`).join('');
+      '<option value="">Earliest</option>' + (dateMin ? `<option value="${dateMin}" selected>${dateMin}</option>` : '');
     document.getElementById('filterDateTo').innerHTML =
-      '<option value="">Latest</option>' + uniqueDates.map(d => `<option value="${d}">${d}</option>`).join('');
+      '<option value="">Latest</option>' + (dateMax ? `<option value="${dateMax}" selected>${dateMax}</option>` : '');
+
+    // Update stats bar with saved date range
+    document.getElementById('statsBar').innerHTML = `
+      <div class="stat-card" style="max-width:300px">
+        <div class="label">Date Range</div>
+        <div class="value" style="font-size:14px">${dateMin || 'N/A'} — ${dateMax || 'N/A'}</div>
+      </div>
+    `;
 
     // Show results section
     document.getElementById('uploadSection').classList.add('hidden');
