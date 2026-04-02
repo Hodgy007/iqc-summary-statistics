@@ -8,6 +8,9 @@ export default async function handler(req, res) {
 
   const sql = neon(process.env.DATABASE_URL);
 
+  // Prevent caching
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+
   if (req.method === 'GET') {
     try {
       const rows = await sql`

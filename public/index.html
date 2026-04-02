@@ -2526,7 +2526,7 @@ document.getElementById('btnSaveReport').addEventListener('click', async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name,
-        raw_data: processedData,
+        raw_data: [],
         results_data: resultsData,
         exclusions,
         filters: {
@@ -2603,10 +2603,10 @@ async function loadReport(id) {
     }
 
     // Restore state
-    processedData = report.raw_data || [];
     resultsData = report.results_data || [];
+    processedData = report.raw_data || [];
+    rawData = processedData;
     exclusions = report.exclusions || [];
-    rawData = processedData; // Use processed as raw since that's what we saved
 
     // Restore UI
     renderStats();
