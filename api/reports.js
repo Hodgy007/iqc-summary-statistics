@@ -1,6 +1,11 @@
 import { neon } from '@neondatabase/serverless';
+import { requireAuth } from './lib/auth.js';
 
 export default async function handler(req, res) {
+  const minPerm = req.method === 'GET' ? undefined : { permission: 'full_access' };
+  const user = await requireAuth(req, res, minPerm);
+  if (!user) return;
+
   const sql = neon(process.env.DATABASE_URL);
 
   if (req.method === 'GET') {

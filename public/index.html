@@ -589,6 +589,144 @@
     .summary-item .s-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; }
     .summary-item .s-value { font-size: 18px; font-weight: 700; margin-top: 2px; }
 
+    /* Auth Screens */
+    .auth-screen {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .auth-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 32px;
+      width: 100%;
+      max-width: 400px;
+    }
+    .auth-card h2 { font-size: 20px; margin-bottom: 4px; }
+    .auth-card .subtitle { font-size: 13px; color: var(--text-dim); margin-bottom: 24px; }
+    .auth-tabs { display: flex; gap: 0; margin-bottom: 20px; }
+    .auth-tab {
+      flex: 1;
+      padding: 10px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text-dim);
+      transition: all 0.15s;
+    }
+    .auth-tab:first-child { border-radius: 6px 0 0 6px; }
+    .auth-tab:last-child { border-radius: 0 6px 6px 0; }
+    .auth-tab.active { background: var(--accent); border-color: var(--accent); color: white; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .form-group input {
+      width: 100%;
+      padding: 10px 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 14px;
+    }
+    .form-group input:focus { outline: none; border-color: var(--accent); }
+    .auth-btn {
+      width: 100%;
+      padding: 12px;
+      background: var(--accent);
+      border: none;
+      border-radius: 6px;
+      color: white;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .auth-btn:hover { background: var(--accent-hover); }
+    .auth-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .auth-error {
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.3);
+      color: var(--danger);
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      margin-bottom: 16px;
+    }
+    .auth-success {
+      background: rgba(34,197,94,0.1);
+      border: 1px solid rgba(34,197,94,0.3);
+      color: var(--success);
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      margin-bottom: 16px;
+    }
+    .pending-screen {
+      text-align: center;
+      padding: 40px;
+    }
+    .pending-screen h2 { margin-bottom: 12px; }
+    .pending-screen p { color: var(--text-dim); margin-bottom: 24px; }
+
+    /* User badge in header */
+    .user-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-dim);
+      padding: 6px 12px;
+      background: var(--bg);
+      border-radius: 16px;
+      border: 1px solid var(--border);
+    }
+    .user-badge .email { color: var(--text); font-weight: 500; }
+    .user-badge .role-tag {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 8px;
+      font-weight: 600;
+    }
+    .role-admin { background: rgba(245,158,11,0.2); color: var(--warning); }
+    .role-user { background: rgba(59,130,246,0.2); color: var(--accent); }
+
+    /* Settings page */
+    .settings-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .settings-section h3 { font-size: 15px; margin-bottom: 16px; }
+    .user-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(71,85,105,0.3);
+      font-size: 13px;
+    }
+    .user-row:last-child { border-bottom: none; }
+    .user-row .user-info { flex: 1; }
+    .user-row .user-email { font-weight: 600; }
+    .user-row .user-meta { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+    .user-row .user-actions { display: flex; gap: 8px; align-items: center; }
+    .user-row select {
+      padding: 4px 8px;
+      font-size: 12px;
+      min-width: 120px;
+    }
+    .status-pending { color: var(--warning); }
+    .status-approved { color: var(--success); }
+    .status-denied { color: var(--danger); }
+
     /* Responsive */
     @media (max-width: 768px) {
       .main-content { padding: 12px; }
@@ -599,15 +737,53 @@
 </head>
 <body>
 
+<!-- Login / Register Screen -->
+<div id="authScreen" class="auth-screen">
+  <div class="auth-card">
+    <h2>IQC Summary Statistics</h2>
+    <div class="subtitle">Sign in to access the dashboard</div>
+    <div class="auth-tabs">
+      <div class="auth-tab active" data-auth="login">Login</div>
+      <div class="auth-tab" data-auth="register">Register</div>
+    </div>
+    <div id="authMessage"></div>
+    <div id="loginForm">
+      <div class="form-group"><label>Email</label><input type="email" id="loginEmail" placeholder="you@example.com"></div>
+      <div class="form-group"><label>Password</label><input type="password" id="loginPassword" placeholder="Enter password"></div>
+      <button class="auth-btn" id="btnLogin">Sign In</button>
+    </div>
+    <div id="registerForm" class="hidden">
+      <div class="form-group"><label>Email</label><input type="email" id="regEmail" placeholder="you@example.com"></div>
+      <div class="form-group"><label>Password</label><input type="password" id="regPassword" placeholder="Min 8 characters"></div>
+      <div class="form-group"><label>Confirm Password</label><input type="password" id="regPassword2" placeholder="Confirm password"></div>
+      <button class="auth-btn" id="btnRegister">Create Account</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pending Approval Screen -->
+<div id="pendingScreen" class="auth-screen hidden">
+  <div class="auth-card pending-screen">
+    <h2>Account Pending</h2>
+    <p>Your account is awaiting admin approval. You'll be able to access the dashboard once approved.</p>
+    <button class="btn" id="btnPendingLogout">Logout</button>
+  </div>
+</div>
+
+<!-- Main App (hidden until authenticated) -->
+<div id="appContainer" class="hidden">
 <div class="app-header">
   <h1>IQC Summary Statistics <span class="badge">v2.0</span></h1>
   <div class="header-actions">
+    <div class="user-badge" id="userBadge"></div>
+    <button class="btn" id="btnSettings" class="hidden" style="display:none">Settings</button>
     <button class="btn" id="btnLoadReport" style="background:var(--accent);border-color:var(--accent)">Load Report</button>
     <button class="btn btn-primary" id="btnSaveReport" disabled>Save Report</button>
     <button class="btn btn-primary" id="btnReport" disabled>Create Report (PDF)</button>
     <button class="btn" id="btnExportXLSX" disabled>Export XLSX</button>
     <button class="btn" id="btnExportCSV" disabled>Export CSV</button>
     <button class="btn btn-danger" id="btnReset" disabled>Clear Data</button>
+    <button class="btn" id="btnLogout">Logout</button>
   </div>
 </div>
 
@@ -815,7 +991,21 @@
       <div class="pagination" id="rawPagination"></div>
     </div>
   </div>
+
+  <!-- Settings Page (admin only) -->
+  <div id="settingsSection" class="hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <h2 style="font-size:18px">User Management</h2>
+      <button class="btn" id="btnBackFromSettings">Back to Dashboard</button>
+    </div>
+    <div class="settings-section">
+      <h3>Registered Users</h3>
+      <div id="usersList">Loading...</div>
+    </div>
+  </div>
+
 </div>
+</div> <!-- close appContainer -->
 
 <!-- Load Report Modal -->
 <div class="modal-overlay" id="loadModalOverlay">
@@ -847,6 +1037,244 @@
 </div>
 
 <script>
+// =============================================
+// AUTHENTICATION
+// =============================================
+let currentUser = null;
+
+async function checkAuth() {
+  try {
+    const resp = await fetch('/api/auth/me');
+    if (!resp.ok) { showAuthScreen(); return; }
+    const data = await resp.json();
+    currentUser = data.user;
+    if (currentUser.status === 'pending') { showPendingScreen(); return; }
+    showApp();
+  } catch {
+    showAuthScreen();
+  }
+}
+
+function showAuthScreen() {
+  currentUser = null;
+  document.getElementById('authScreen').classList.remove('hidden');
+  document.getElementById('pendingScreen').classList.add('hidden');
+  document.getElementById('appContainer').classList.add('hidden');
+}
+
+function showPendingScreen() {
+  document.getElementById('authScreen').classList.add('hidden');
+  document.getElementById('pendingScreen').classList.remove('hidden');
+  document.getElementById('appContainer').classList.add('hidden');
+}
+
+function showApp() {
+  document.getElementById('authScreen').classList.add('hidden');
+  document.getElementById('pendingScreen').classList.add('hidden');
+  document.getElementById('appContainer').classList.remove('hidden');
+
+  // User badge
+  const roleClass = currentUser.role === 'admin' ? 'role-admin' : 'role-user';
+  const roleLabel = currentUser.role === 'admin' ? 'Admin' : currentUser.permission === 'full_access' ? 'Full Access' : 'View Only';
+  document.getElementById('userBadge').innerHTML =
+    `<span class="email">${currentUser.email}</span><span class="role-tag ${roleClass}">${roleLabel}</span>`;
+
+  // Settings button (admin only)
+  document.getElementById('btnSettings').style.display = currentUser.role === 'admin' ? 'inline-block' : 'none';
+
+  applyPermissions();
+}
+
+function applyPermissions() {
+  const isViewOnly = currentUser.permission === 'view_only' && currentUser.role !== 'admin';
+  const restrictedBtns = ['btnSaveReport', 'btnReport', 'btnExportXLSX', 'btnExportCSV', 'btnReset'];
+
+  if (isViewOnly) {
+    // Hide upload zone and process button
+    const dropZone = document.getElementById('dropZone');
+    const btnProcess = document.getElementById('btnProcess');
+    if (dropZone) dropZone.style.display = 'none';
+    if (btnProcess) btnProcess.style.display = 'none';
+  }
+}
+
+// Auth tabs
+document.querySelectorAll('.auth-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const mode = tab.dataset.auth;
+    document.getElementById('loginForm').classList.toggle('hidden', mode !== 'login');
+    document.getElementById('registerForm').classList.toggle('hidden', mode !== 'register');
+    document.getElementById('authMessage').innerHTML = '';
+  });
+});
+
+// Login
+document.getElementById('btnLogin').addEventListener('click', async () => {
+  const email = document.getElementById('loginEmail').value;
+  const password = document.getElementById('loginPassword').value;
+  const msgEl = document.getElementById('authMessage');
+  msgEl.innerHTML = '';
+
+  if (!email || !password) { msgEl.innerHTML = '<div class="auth-error">Please enter email and password</div>'; return; }
+
+  const btn = document.getElementById('btnLogin');
+  btn.disabled = true; btn.textContent = 'Signing in...';
+
+  try {
+    const resp = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await resp.json();
+    if (resp.ok) {
+      await checkAuth();
+    } else {
+      msgEl.innerHTML = `<div class="auth-error">${data.error}</div>`;
+    }
+  } catch (err) {
+    msgEl.innerHTML = `<div class="auth-error">Connection error: ${err.message}</div>`;
+  }
+  btn.disabled = false; btn.textContent = 'Sign In';
+});
+
+// Register
+document.getElementById('btnRegister').addEventListener('click', async () => {
+  const email = document.getElementById('regEmail').value;
+  const password = document.getElementById('regPassword').value;
+  const password2 = document.getElementById('regPassword2').value;
+  const msgEl = document.getElementById('authMessage');
+  msgEl.innerHTML = '';
+
+  if (!email || !password) { msgEl.innerHTML = '<div class="auth-error">Please fill in all fields</div>'; return; }
+  if (password !== password2) { msgEl.innerHTML = '<div class="auth-error">Passwords do not match</div>'; return; }
+  if (password.length < 8) { msgEl.innerHTML = '<div class="auth-error">Password must be at least 8 characters</div>'; return; }
+
+  const btn = document.getElementById('btnRegister');
+  btn.disabled = true; btn.textContent = 'Creating account...';
+
+  try {
+    const resp = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await resp.json();
+    if (resp.ok && data.pending) {
+      msgEl.innerHTML = `<div class="auth-success">${data.message}</div>`;
+    } else if (resp.ok) {
+      await checkAuth();
+    } else {
+      msgEl.innerHTML = `<div class="auth-error">${data.error}</div>`;
+    }
+  } catch (err) {
+    msgEl.innerHTML = `<div class="auth-error">Connection error: ${err.message}</div>`;
+  }
+  btn.disabled = false; btn.textContent = 'Create Account';
+});
+
+// Logout
+document.getElementById('btnLogout').addEventListener('click', async () => {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  showAuthScreen();
+});
+document.getElementById('btnPendingLogout').addEventListener('click', async () => {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  showAuthScreen();
+});
+
+// Enter on password fields
+document.getElementById('loginPassword').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('btnLogin').click(); });
+document.getElementById('regPassword2').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('btnRegister').click(); });
+
+// =============================================
+// SETTINGS PAGE (Admin)
+// =============================================
+document.getElementById('btnSettings').addEventListener('click', () => {
+  document.getElementById('uploadSection').classList.add('hidden');
+  document.getElementById('resultsSection').classList.add('hidden');
+  document.getElementById('settingsSection').classList.remove('hidden');
+  loadUsers();
+});
+
+document.getElementById('btnBackFromSettings').addEventListener('click', () => {
+  document.getElementById('settingsSection').classList.add('hidden');
+  // Show whichever was visible before
+  if (resultsData.length > 0) {
+    document.getElementById('resultsSection').classList.remove('hidden');
+  } else {
+    document.getElementById('uploadSection').classList.remove('hidden');
+  }
+});
+
+async function loadUsers() {
+  const container = document.getElementById('usersList');
+  container.innerHTML = '<div style="color:var(--text-dim)">Loading users...</div>';
+
+  try {
+    const resp = await fetch('/api/admin/users');
+    if (!resp.ok) { container.innerHTML = '<div class="auth-error">Failed to load users</div>'; return; }
+    const users = await resp.json();
+
+    if (users.length === 0) { container.innerHTML = '<div style="color:var(--text-dim)">No users registered</div>'; return; }
+
+    container.innerHTML = users.map(u => {
+      const statusClass = u.status === 'approved' ? 'status-approved' : u.status === 'denied' ? 'status-denied' : 'status-pending';
+      const isAdmin = u.role === 'admin';
+      const created = new Date(u.created_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+
+      return `<div class="user-row">
+        <div class="user-info">
+          <div class="user-email">${u.email} ${isAdmin ? '<span class="role-tag role-admin" style="font-size:10px">Admin</span>' : ''}</div>
+          <div class="user-meta">Registered ${created} &middot; <span class="${statusClass}">${u.status}</span></div>
+        </div>
+        <div class="user-actions">
+          ${isAdmin ? '<span style="font-size:12px;color:var(--text-dim)">Admin account</span>' : `
+            <select onchange="updateUserStatus(${u.id}, this.value)" style="font-size:12px">
+              <option value="pending" ${u.status === 'pending' ? 'selected' : ''}>Pending</option>
+              <option value="approved" ${u.status === 'approved' ? 'selected' : ''}>Approved</option>
+              <option value="denied" ${u.status === 'denied' ? 'selected' : ''}>Denied</option>
+            </select>
+            <select onchange="updateUserPermission(${u.id}, this.value)" style="font-size:12px">
+              <option value="view_only" ${u.permission === 'view_only' ? 'selected' : ''}>View Only</option>
+              <option value="full_access" ${u.permission === 'full_access' ? 'selected' : ''}>Full Access</option>
+            </select>
+          `}
+        </div>
+      </div>`;
+    }).join('');
+  } catch (err) {
+    container.innerHTML = `<div class="auth-error">Error: ${err.message}</div>`;
+  }
+}
+
+async function updateUserStatus(userId, status) {
+  try {
+    await fetch('/api/admin/users', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, status })
+    });
+    loadUsers();
+  } catch (err) { alert('Error: ' + err.message); }
+}
+
+async function updateUserPermission(userId, permission) {
+  try {
+    await fetch('/api/admin/users', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, permission })
+    });
+    loadUsers();
+  } catch (err) { alert('Error: ' + err.message); }
+}
+
+// Init - check auth on page load
+checkAuth();
+
 // =============================================
 // QC AUDIT TOOL - Complete Processing Engine
 // =============================================
