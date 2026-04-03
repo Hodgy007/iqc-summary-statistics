@@ -52,7 +52,7 @@ export default async function handler(req, res) {
       .sign(secret);
 
     res.setHeader('Set-Cookie', `token=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800`);
-    await logActivity(user.id, 'login', `Signed in`);
+    logActivity(user.id, 'login', `Signed in`);
     res.status(200).json({ success: true, user: { email: user.email, role: user.role, permission: user.permission } });
   } catch (err) {
     console.error('Login error:', err);

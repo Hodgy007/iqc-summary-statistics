@@ -63,7 +63,7 @@ export default async function handler(req, res) {
         .sign(secret);
 
       res.setHeader('Set-Cookie', `token=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800`);
-      await logActivity(user.id, 'register', 'First user registered as admin');
+      logActivity(user.id, 'register', 'First user registered as admin');
       return res.status(201).json({ success: true, user: { email: user.email, role: user.role, permission: user.permission } });
     }
 

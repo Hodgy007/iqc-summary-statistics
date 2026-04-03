@@ -42,7 +42,7 @@ export default async function handler(req, res) {
       }
 
       const changes = [updates.status ? `status=${updates.status}` : '', updates.permission ? `permission=${updates.permission}` : ''].filter(Boolean).join(', ');
-      await logActivity(user.id, 'user_update', `Updated user ${userId}: ${changes}`);
+      logActivity(user.id, 'user_update', `Updated user ${userId}: ${changes}`);
       res.status(200).json({ success: true });
     } catch (err) {
       console.error('Admin user update error:', err);
