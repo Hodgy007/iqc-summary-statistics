@@ -2950,8 +2950,21 @@ async function loadReport(id) {
 
     // Show saved date range and protocol if available
     document.getElementById('filterProtocol').innerHTML = '<option value="all">All Protocols</option>';
-    const dateMin = savedFilters.dateRangeMin || savedFilters.dateFrom || '';
-    const dateMax = savedFilters.dateRangeMax || savedFilters.dateTo || '';
+
+    // Compute date range from raw data as fallback for reports saved before the fix
+    let dateMin = savedFilters.dateRangeMin || savedFilters.dateFrom || '';
+    let dateMax = savedFilters.dateRangeMax || savedFilters.dateTo || '';
+    if ((!dateMin || !dateMax) && processedData.length > 0) {
+      const range = processedData.reduce((acc, r) => {
+        if (r.date) {
+          if (!acc.min || r.date < acc.min) acc.min = r.date;
+          if (!acc.max || r.date > acc.max) acc.max = r.date;
+        }
+        return acc;
+      }, { min: '', max: '' });
+      if (!dateMin && range.min) dateMin = range.min.substring(0, 10);
+      if (!dateMax && range.max) dateMax = range.max.substring(0, 10);
+    }
     document.getElementById('filterDateFrom').innerHTML =
       '<option value="">Earliest</option>' + (dateMin ? `<option value="${dateMin}" selected>${dateMin}</option>` : '');
     document.getElementById('filterDateTo').innerHTML =
