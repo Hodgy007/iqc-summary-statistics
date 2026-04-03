@@ -748,7 +748,18 @@
       }
       .main-content { padding: 12px; }
       .stats-bar { grid-template-columns: repeat(2, 1fr); }
-      .filters { flex-direction: column; }
+      .filters {
+        flex-direction: column;
+        gap: 10px;
+      }
+      .filter-group {
+        width: 100%;
+      }
+      .filter-group select,
+      .filter-group input[type="text"] {
+        width: 100%;
+        min-width: 0;
+      }
       table {
         font-size: 11px;
       }
@@ -776,6 +787,14 @@
         font-size: 11px;
       }
       .stats-bar { grid-template-columns: 1fr; }
+      .filter-group label {
+        font-size: 10px;
+      }
+      .filter-group select,
+      .filter-group input[type="text"] {
+        padding: 6px 10px;
+        font-size: 12px;
+      }
       table {
         font-size: 10px;
       }
