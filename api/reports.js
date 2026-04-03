@@ -14,7 +14,7 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
       const rows = await sql`
-        SELECT id, name, created_at,
+        SELECT id, name, created_at, user_id,
           CASE
             WHEN jsonb_typeof(results_data) = 'array' THEN jsonb_array_length(results_data)
             ELSE 0
@@ -24,7 +24,8 @@ export default async function handler(req, res) {
       `;
       res.status(200).json(rows);
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      console.error('Reports list error:', err);
+      res.status(500).json({ error: 'Failed to load reports' });
     }
   } else if (req.method === 'POST') {
     try {
@@ -32,13 +33,14 @@ export default async function handler(req, res) {
       if (!name) return res.status(400).json({ error: 'Name is required' });
 
       const rows = await sql`
-        INSERT INTO reports (name, raw_data, results_data, exclusions, filters)
-        VALUES (${name}, ${JSON.stringify(raw_data)}, ${JSON.stringify(results_data)}, ${JSON.stringify(exclusions || [])}, ${JSON.stringify(filters || {})})
+        INSERT INTO reports (name, user_id, raw_data, results_data, exclusions, filters)
+        VALUES (${name}, ${user.id}, ${JSON.stringify(raw_data)}, ${JSON.stringify(results_data)}, ${JSON.stringify(exclusions || [])}, ${JSON.stringify(filters || {})})
         RETURNING id, name, created_at
       `;
       res.status(201).json(rows[0]);
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      console.error('Report save error:', err);
+      res.status(500).json({ error: 'Failed to save report' });
     }
   } else {
     res.status(405).json({ error: 'Method not allowed' });

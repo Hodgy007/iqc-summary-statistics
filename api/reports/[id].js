@@ -15,14 +15,22 @@ export default async function handler(req, res) {
       if (rows.length === 0) return res.status(404).json({ error: 'Report not found' });
       res.status(200).json(rows[0]);
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      console.error('Report fetch error:', err);
+      res.status(500).json({ error: 'Failed to load report' });
     }
   } else if (req.method === 'DELETE') {
     try {
+      // Only allow owner or admin to delete
+      const rows = await sql`SELECT user_id FROM reports WHERE id = ${id}`;
+      if (rows.length === 0) return res.status(404).json({ error: 'Report not found' });
+      if (rows[0].user_id && rows[0].user_id !== user.id && user.role !== 'admin') {
+        return res.status(403).json({ error: 'You can only delete your own reports' });
+      }
       await sql`DELETE FROM reports WHERE id = ${id}`;
       res.status(200).json({ success: true });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      console.error('Report delete error:', err);
+      res.status(500).json({ error: 'Failed to delete report' });
     }
   } else {
     res.status(405).json({ error: 'Method not allowed' });

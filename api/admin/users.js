@@ -12,14 +12,19 @@ export default async function handler(req, res) {
       const rows = await sql`SELECT id, email, role, status, permission, created_at FROM users ORDER BY created_at DESC`;
       res.status(200).json(rows);
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      console.error('Admin users list error:', err);
+      res.status(500).json({ error: 'Failed to load users' });
     }
   } else if (req.method === 'PUT') {
     try {
       const { userId, status, permission } = req.body;
       if (!userId) return res.status(400).json({ error: 'userId required' });
 
-      // Prevent admin from modifying own role
+      // Prevent admin from modifying own account
+      if (parseInt(userId) === user.id) {
+        return res.status(400).json({ error: 'Cannot modify your own account' });
+      }
+
       const target = await sql`SELECT role FROM users WHERE id = ${userId}`;
       if (target.length === 0) return res.status(404).json({ error: 'User not found' });
 
@@ -37,7 +42,8 @@ export default async function handler(req, res) {
 
       res.status(200).json({ success: true });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      console.error('Admin user update error:', err);
+      res.status(500).json({ error: 'Failed to update user' });
     }
   } else {
     res.status(405).json({ error: 'Method not allowed' });

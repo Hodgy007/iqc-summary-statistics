@@ -105,24 +105,24 @@ describe('Login API', () => {
     expect(res.statusCode).toBe(401);
   });
 
-  test('rejects pending accounts', async () => {
+  test('rejects pending accounts with generic message to prevent timing oracle', async () => {
     mockSql.mockResolvedValueOnce([{ id: 1, email: 'test@test.com', password_hash: 'hash', status: 'pending' }]);
     mockCompare.mockResolvedValueOnce(true);
     const req = createMockReq({ method: 'POST', body: { email: 'test@test.com', password: 'correct' } });
     const res = createMockRes();
     await handler(req, res);
-    expect(res.statusCode).toBe(403);
-    expect(res.body.error).toBe('Account pending approval');
+    expect(res.statusCode).toBe(401);
+    expect(res.body.error).toBe('Invalid email or password');
   });
 
-  test('rejects denied accounts', async () => {
+  test('rejects denied accounts with generic message to prevent timing oracle', async () => {
     mockSql.mockResolvedValueOnce([{ id: 1, email: 'test@test.com', password_hash: 'hash', status: 'denied' }]);
     mockCompare.mockResolvedValueOnce(true);
     const req = createMockReq({ method: 'POST', body: { email: 'test@test.com', password: 'correct' } });
     const res = createMockRes();
     await handler(req, res);
-    expect(res.statusCode).toBe(403);
-    expect(res.body.error).toBe('Account has been denied');
+    expect(res.statusCode).toBe(401);
+    expect(res.body.error).toBe('Invalid email or password');
   });
 
   test('successful login sets HttpOnly cookie and returns user', async () => {
@@ -360,5 +360,88 @@ describe('Admin Users API', () => {
     await handler(req, res);
 
     expect(res.statusCode).toBe(405);
+  });
+
+  test('prevents admin from modifying own account', async () => {
+    mockJwtVerify.mockResolvedValueOnce({ payload: { id: 1 } });
+    mockSql.mockResolvedValueOnce([{ id: 1, email: 'admin@test.com', role: 'admin', status: 'approved', permission: 'full_access' }]);
+
+    const req = createMockReq({
+      method: 'PUT',
+      headers: { cookie: 'token=admin-jwt' },
+      body: { userId: 1, status: 'denied' },
+    });
+    const res = createMockRes();
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toBe('Cannot modify your own account');
+  });
+});
+
+// =============================================
+// Reports: IDOR protection
+// =============================================
+describe('Reports IDOR Protection', () => {
+  let handler;
+
+  beforeEach(() => {
+    jest.resetModules();
+    jest.clearAllMocks();
+    handler = require('../api/reports/[id].js').default;
+  });
+
+  test('prevents non-owner non-admin from deleting reports', async () => {
+    mockJwtVerify.mockResolvedValueOnce({ payload: { id: 2 } });
+    mockSql
+      .mockResolvedValueOnce([{ id: 2, email: 'user@test.com', role: 'user', status: 'approved', permission: 'full_access' }])
+      .mockResolvedValueOnce([{ user_id: 1 }]); // report owned by user 1
+
+    const req = createMockReq({
+      method: 'DELETE',
+      headers: { cookie: 'token=user-jwt' },
+      query: { id: '5' },
+    });
+    const res = createMockRes();
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body.error).toContain('own reports');
+  });
+
+  test('allows admin to delete any report', async () => {
+    mockJwtVerify.mockResolvedValueOnce({ payload: { id: 1 } });
+    mockSql
+      .mockResolvedValueOnce([{ id: 1, email: 'admin@test.com', role: 'admin', status: 'approved', permission: 'full_access' }])
+      .mockResolvedValueOnce([{ user_id: 2 }]) // report owned by user 2
+      .mockResolvedValueOnce([]); // delete
+
+    const req = createMockReq({
+      method: 'DELETE',
+      headers: { cookie: 'token=admin-jwt' },
+      query: { id: '5' },
+    });
+    const res = createMockRes();
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(200);
+  });
+
+  test('allows owner to delete own report', async () => {
+    mockJwtVerify.mockResolvedValueOnce({ payload: { id: 2 } });
+    mockSql
+      .mockResolvedValueOnce([{ id: 2, email: 'user@test.com', role: 'user', status: 'approved', permission: 'full_access' }])
+      .mockResolvedValueOnce([{ user_id: 2 }]) // report owned by same user
+      .mockResolvedValueOnce([]); // delete
+
+    const req = createMockReq({
+      method: 'DELETE',
+      headers: { cookie: 'token=user-jwt' },
+      query: { id: '5' },
+    });
+    const res = createMockRes();
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(200);
   });
 });

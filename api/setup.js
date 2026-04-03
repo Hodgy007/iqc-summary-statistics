@@ -1,6 +1,10 @@
 import { neon } from '@neondatabase/serverless';
+import { requireAuth } from './lib/auth.js';
 
 export default async function handler(req, res) {
+  const user = await requireAuth(req, res, { role: 'admin' });
+  if (!user) return;
+
   const sql = neon(process.env.DATABASE_URL);
 
   try {
@@ -9,6 +13,7 @@ export default async function handler(req, res) {
         id SERIAL PRIMARY KEY,
         name TEXT NOT NULL,
         created_at TIMESTAMPTZ DEFAULT NOW(),
+        user_id INTEGER REFERENCES users(id),
         raw_data JSONB,
         results_data JSONB,
         exclusions JSONB DEFAULT '[]',
@@ -26,8 +31,16 @@ export default async function handler(req, res) {
         created_at TIMESTAMPTZ DEFAULT NOW()
       )
     `;
+    // Add user_id column if it doesn't exist (for existing installations)
+    await sql`
+      DO $$ BEGIN
+        ALTER TABLE reports ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id);
+      EXCEPTION WHEN others THEN NULL;
+      END $$
+    `;
     res.status(200).json({ success: true, message: 'Database setup complete' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Setup error:', err);
+    res.status(500).json({ error: 'Database setup failed' });
   }
 }

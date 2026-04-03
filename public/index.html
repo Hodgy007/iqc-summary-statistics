@@ -3,12 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:;">
   <title>IQC Summary Statistics</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js" crossorigin="anonymous"></script>
   <style>
     :root {
       --bg: #0f172a;
@@ -1111,6 +1112,19 @@
 
 <script>
 // =============================================
+// SECURITY UTILITIES
+// =============================================
+function escapeHtml(str) {
+  if (str == null) return '';
+  const s = String(str);
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+
+// =============================================
 // AUTHENTICATION
 // =============================================
 let currentUser = null;
@@ -1150,7 +1164,7 @@ function showApp() {
   const roleClass = currentUser.role === 'admin' ? 'role-admin' : 'role-user';
   const roleLabel = currentUser.role === 'admin' ? 'Admin' : currentUser.permission === 'full_access' ? 'Full Access' : 'View Only';
   document.getElementById('userBadge').innerHTML =
-    `<span class="email">${currentUser.email}</span><span class="role-tag ${roleClass}">${roleLabel}</span>`;
+    `<span class="email">${escapeHtml(currentUser.email)}</span><span class="role-tag ${roleClass}">${escapeHtml(roleLabel)}</span>`;
 
   // Settings button (admin only)
   document.getElementById('btnSettings').style.display = currentUser.role === 'admin' ? 'inline-block' : 'none';
@@ -1205,10 +1219,10 @@ document.getElementById('btnLogin').addEventListener('click', async () => {
     if (resp.ok) {
       await checkAuth();
     } else {
-      msgEl.innerHTML = `<div class="auth-error">${data.error}</div>`;
+      msgEl.innerHTML = `<div class="auth-error">${escapeHtml(data.error)}</div>`;
     }
   } catch (err) {
-    msgEl.innerHTML = `<div class="auth-error">Connection error: ${err.message}</div>`;
+    msgEl.innerHTML = `<div class="auth-error">Connection error: ${escapeHtml(err.message)}</div>`;
   }
   btn.disabled = false; btn.textContent = 'Sign In';
 });
@@ -1236,14 +1250,14 @@ document.getElementById('btnRegister').addEventListener('click', async () => {
     });
     const data = await resp.json();
     if (resp.ok && data.pending) {
-      msgEl.innerHTML = `<div class="auth-success">${data.message}</div>`;
+      msgEl.innerHTML = `<div class="auth-success">${escapeHtml(data.message)}</div>`;
     } else if (resp.ok) {
       await checkAuth();
     } else {
-      msgEl.innerHTML = `<div class="auth-error">${data.error}</div>`;
+      msgEl.innerHTML = `<div class="auth-error">${escapeHtml(data.error)}</div>`;
     }
   } catch (err) {
-    msgEl.innerHTML = `<div class="auth-error">Connection error: ${err.message}</div>`;
+    msgEl.innerHTML = `<div class="auth-error">Connection error: ${escapeHtml(err.message)}</div>`;
   }
   btn.disabled = false; btn.textContent = 'Create Account';
 });
@@ -1300,8 +1314,8 @@ async function loadUsers() {
 
       return `<div class="user-row">
         <div class="user-info">
-          <div class="user-email">${u.email} ${isAdmin ? '<span class="role-tag role-admin" style="font-size:10px">Admin</span>' : ''}</div>
-          <div class="user-meta">Registered ${created} &middot; <span class="${statusClass}">${u.status}</span></div>
+          <div class="user-email">${escapeHtml(u.email)} ${isAdmin ? '<span class="role-tag role-admin" style="font-size:10px">Admin</span>' : ''}</div>
+          <div class="user-meta">Registered ${escapeHtml(created)} &middot; <span class="${statusClass}">${escapeHtml(u.status)}</span></div>
         </div>
         <div class="user-actions">
           ${isAdmin ? '<span style="font-size:12px;color:var(--text-dim)">Admin account</span>' : `
@@ -1319,7 +1333,7 @@ async function loadUsers() {
       </div>`;
     }).join('');
   } catch (err) {
-    container.innerHTML = `<div class="auth-error">Error: ${err.message}</div>`;
+    container.innerHTML = `<div class="auth-error">Error: ${escapeHtml(err.message)}</div>`;
   }
 }
 
@@ -1583,8 +1597,8 @@ function renderResultsTable() {
     const even = groupIdx % 2 === 0;
 
     html += `<tr class="${even ? 'even-group' : ''}">`;
-    html += `<td class="analyte">${row.parameter}</td>`;
-    html += `<td class="level">${row.level}</td>`;
+    html += `<td class="analyte">${escapeHtml(row.parameter)}</td>`;
+    html += `<td class="level">${escapeHtml(row.level)}</td>`;
 
     for (const inst of instruments) {
       const s = row[inst];
@@ -1601,7 +1615,7 @@ function renderResultsTable() {
 function renderStatCells(s, param, level, instrument) {
   if (!s || s.count === 0) return '<td>-</td><td>-</td><td>-</td><td>-</td>';
   const cvClass = s.cv > 10 ? 'cv-high' : s.cv > 5 ? 'cv-warn' : 'cv-ok';
-  const d = `data-param="${param}" data-level="${level}" data-inst="${instrument}"`;
+  const d = `data-param="${escapeHtml(param)}" data-level="${escapeHtml(level)}" data-inst="${escapeHtml(instrument)}"`;
   return `<td class="clickable" ${d} data-stat="mean">${s.mean.toFixed(2)}</td>
     <td class="clickable" ${d} data-stat="sd">${s.sd.toFixed(2)}</td>
     <td class="clickable ${cvClass}" ${d} data-stat="cv">${s.cv.toFixed(2)}</td>
@@ -1633,18 +1647,18 @@ function renderRawData() {
     const statusClass = r.status.includes('Accepted') ? 'status-accepted' :
       r.status.includes('rejected') ? 'status-rejected' : 'status-manual';
     html += `<tr>
-      <td style="text-align:left">${r.protocol}</td>
-      <td>${r.instrument}</td>
-      <td>${r.parameter}</td>
-      <td>${r.level}</td>
-      <td>${r.date}</td>
-      <td><b>${r.value}</b></td>
-      <td>${r.target}</td>
-      <td>${r.sd}</td>
-      <td class="${statusClass}">${r.status}</td>
-      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;text-align:left">${r.message}</td>
-      <td>${r.user}</td>
-      <td>${r.sampleId}</td>
+      <td style="text-align:left">${escapeHtml(r.protocol)}</td>
+      <td>${escapeHtml(r.instrument)}</td>
+      <td>${escapeHtml(r.parameter)}</td>
+      <td>${escapeHtml(r.level)}</td>
+      <td>${escapeHtml(r.date)}</td>
+      <td><b>${escapeHtml(r.value)}</b></td>
+      <td>${escapeHtml(r.target)}</td>
+      <td>${escapeHtml(r.sd)}</td>
+      <td class="${statusClass}">${escapeHtml(r.status)}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;text-align:left">${escapeHtml(r.message)}</td>
+      <td>${escapeHtml(r.user)}</td>
+      <td>${escapeHtml(r.sampleId)}</td>
     </tr>`;
   }
 
@@ -1670,10 +1684,10 @@ function populateChartFilters() {
   const levels = [...new Set(processedData.map(r => r.level))].sort();
 
   const paramSelect = document.getElementById('chartAnalyte');
-  paramSelect.innerHTML = params.map(p => `<option value="${p}">${p}</option>`).join('');
+  paramSelect.innerHTML = params.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
 
   const levelSelect = document.getElementById('chartLevel');
-  levelSelect.innerHTML = levels.map(l => `<option value="${l}">${l}</option>`).join('');
+  levelSelect.innerHTML = levels.map(l => `<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join('');
 }
 
 function getSelectedInstruments() {
@@ -2187,6 +2201,10 @@ fileInput.addEventListener('change', e => handleFiles(e.target.files));
 
 function handleFiles(files) {
   for (const f of files) {
+    if (f.size > MAX_FILE_SIZE) {
+      alert(`File "${f.name}" exceeds the 50MB size limit and was skipped.`);
+      continue;
+    }
     if (f.name.endsWith('.csv') && !uploadedFiles.find(u => u.name === f.name)) {
       uploadedFiles.push(f);
     }
@@ -2200,7 +2218,7 @@ function handleFiles(files) {
 function renderFileList() {
   document.getElementById('fileList').innerHTML = uploadedFiles.map((f, i) =>
     `<div class="file-chip">
-      📄 ${f.name} (${(f.size / 1024).toFixed(0)} KB)
+      📄 ${escapeHtml(f.name)} (${(f.size / 1024).toFixed(0)} KB)
       <span class="remove" onclick="removeFile(${i})">✕</span>
     </div>`
   ).join('');
@@ -2241,13 +2259,13 @@ btnProcess.addEventListener('click', async () => {
     const protocols = [...new Set(processedData.map(r => r.protocol))].sort();
     document.getElementById('filterProtocol').innerHTML =
       '<option value="all">All Protocols</option>' +
-      protocols.map(p => `<option value="${p}">${p}</option>`).join('');
+      protocols.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
 
     // Populate analyte filter
     const analytes = [...new Set(processedData.map(r => r.parameter))].sort();
     document.getElementById('filterAnalyte').innerHTML =
       '<option value="all">All Analytes</option>' +
-      analytes.map(a => `<option value="${a}">${a}</option>`).join('');
+      analytes.map(a => `<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('');
 
     // Populate date filters with unique dates from data
     const uniqueDates = [...new Set(processedData.map(r => {
@@ -2415,7 +2433,7 @@ function renderExclusions() {
     count.classList.remove('hidden');
     list.innerHTML = exclusions.map((e, i) =>
       `<div class="exclusion-chip">
-        ${e.analyte} / ${e.instrument}
+        ${escapeHtml(e.analyte)} / ${escapeHtml(e.instrument)}
         <span class="remove-exc" onclick="removeExclusion(${i})">&#10005;</span>
       </div>`
     ).join('');
@@ -2436,7 +2454,7 @@ function recomputeWithExclusions() {
 function populateExclusionAnalytes() {
   const analytes = [...new Set(processedData.map(r => r.parameter))].sort();
   document.getElementById('excAnalyte').innerHTML =
-    analytes.map(a => `<option value="${a}">${a}</option>`).join('');
+    analytes.map(a => `<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('');
 }
 
 // =============================================
@@ -2524,9 +2542,9 @@ document.getElementById('resultsTable').addEventListener('click', e => {
     html += `<span class="label">CV%</span> <span class="operator">=</span> (<span class="value">${sd.toFixed(4)}</span> <span class="operator">/</span> <span class="value">${mean.toFixed(4)}</span>) <span class="operator">&times;</span> <span class="value">100</span> <span class="operator">=</span> <span class="result">${cv.toFixed(2)}%</span>`;
   } else if (stat === 'n') {
     html += `<span class="label">Count (n)</span> <span class="operator">=</span> <span class="label">Number of data points matching:</span><br>`;
-    html += `<span class="label">  Parameter</span> <span class="operator">=</span> <span class="value">${param}</span><br>`;
-    html += `<span class="label">  Level</span> <span class="operator">=</span> <span class="value">${level}</span><br>`;
-    html += `<span class="label">  Instrument</span> <span class="operator">=</span> <span class="value">${instLabel}</span><br>`;
+    html += `<span class="label">  Parameter</span> <span class="operator">=</span> <span class="value">${escapeHtml(param)}</span><br>`;
+    html += `<span class="label">  Level</span> <span class="operator">=</span> <span class="value">${escapeHtml(level)}</span><br>`;
+    html += `<span class="label">  Instrument</span> <span class="operator">=</span> <span class="value">${escapeHtml(instLabel)}</span><br>`;
     html += `<span class="label">  Status</span> <span class="operator">=</span> <span class="value">Accepted / Manually accepted</span><br>`;
     html += `<span class="label">n</span> <span class="operator">=</span> <span class="result">${n}</span>`;
   }
@@ -2548,13 +2566,13 @@ document.getElementById('resultsTable').addEventListener('click', e => {
     const highlight = sdAway > 2 ? ' class="highlight-row"' : '';
     html += `<tr${highlight}>`;
     html += `<td>${i + 1}</td>`;
-    html += `<td>${p.date}</td>`;
-    html += `<td><b>${p.value}</b></td>`;
+    html += `<td>${escapeHtml(p.date)}</td>`;
+    html += `<td><b>${escapeHtml(p.value)}</b></td>`;
     html += `<td>${dev >= 0 ? '+' : ''}${dev.toFixed(3)} (${sdAway.toFixed(1)} SD)</td>`;
-    if (inst === 'combined') html += `<td>${p.instrument}</td>`;
-    html += `<td>${p.protocol}</td>`;
-    html += `<td>${p.status}</td>`;
-    html += `<td>${p.sampleId}</td>`;
+    if (inst === 'combined') html += `<td>${escapeHtml(p.instrument)}</td>`;
+    html += `<td>${escapeHtml(p.protocol)}</td>`;
+    html += `<td>${escapeHtml(p.status)}</td>`;
+    html += `<td>${escapeHtml(p.sampleId)}</td>`;
     html += `</tr>`;
   });
 
@@ -2646,7 +2664,7 @@ document.getElementById('btnLoadReport').addEventListener('click', async () => {
     const reports = await resp.json();
 
     if (!resp.ok) {
-      loadModalBody.innerHTML = `<div style="color:var(--danger);padding:20px">Error: ${reports.error || 'Could not load reports'}</div>`;
+      loadModalBody.innerHTML = `<div style="color:var(--danger);padding:20px">Error: ${escapeHtml(reports.error || 'Could not load reports')}</div>`;
       return;
     }
 
@@ -2661,7 +2679,7 @@ document.getElementById('btnLoadReport').addEventListener('click', async () => {
         <tbody>
           ${reports.map(r => `
             <tr>
-              <td style="text-align:left;font-weight:600">${r.name}</td>
+              <td style="text-align:left;font-weight:600">${escapeHtml(r.name)}</td>
               <td>${new Date(r.created_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })}</td>
               <td>${r.result_count || 0} rows</td>
               <td><button class="btn btn-primary" style="padding:4px 12px;font-size:12px" onclick="loadReport(${r.id})">Load</button></td>
@@ -2672,7 +2690,7 @@ document.getElementById('btnLoadReport').addEventListener('click', async () => {
       </table>
     `;
   } catch (err) {
-    loadModalBody.innerHTML = `<div style="color:var(--danger);padding:20px">Error connecting to server: ${err.message}<br><br><span style="color:var(--text-dim);font-size:12px">Make sure the database is set up. Visit /api/setup first.</span></div>`;
+    loadModalBody.innerHTML = `<div style="color:var(--danger);padding:20px">Error connecting to server: ${escapeHtml(err.message)}<br><br><span style="color:var(--text-dim);font-size:12px">Make sure the database is set up. Visit /api/setup first.</span></div>`;
   }
 });
 
@@ -2706,14 +2724,14 @@ async function loadReport(id) {
     const analytes = [...new Set(resultsData.map(r => r.parameter))].sort();
     document.getElementById('filterAnalyte').innerHTML =
       '<option value="all">All Analytes</option>' +
-      analytes.map(a => `<option value="${a}">${a}</option>`).join('');
+      analytes.map(a => `<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('');
 
     // Populate chart filters from resultsData
     const chartParams = document.getElementById('chartAnalyte');
-    if (chartParams) chartParams.innerHTML = analytes.map(p => `<option value="${p}">${p}</option>`).join('');
+    if (chartParams) chartParams.innerHTML = analytes.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
     const levels = [...new Set(resultsData.map(r => r.level))].sort();
     const chartLevels = document.getElementById('chartLevel');
-    if (chartLevels) chartLevels.innerHTML = levels.map(l => `<option value="${l}">${l}</option>`).join('');
+    if (chartLevels) chartLevels.innerHTML = levels.map(l => `<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join('');
 
     // Show saved date range and protocol if available
     document.getElementById('filterProtocol').innerHTML = '<option value="all">All Protocols</option>';
