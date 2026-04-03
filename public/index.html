@@ -506,6 +506,16 @@
       font-size: 13px;
     }
 
+    .modal-body h2 { font-size: 18px; margin-bottom: 8px; }
+    .modal-body h3 { font-size: 15px; margin: 20px 0 8px; color: var(--accent); }
+    .modal-body h4 { font-size: 13px; margin: 16px 0 6px; }
+    .modal-body ul, .modal-body ol { padding-left: 20px; margin: 8px 0; }
+    .modal-body li { margin: 4px 0; }
+    .modal-body p { margin: 8px 0; }
+    .modal-body table { border-collapse: collapse; margin: 8px 0; }
+    .modal-body th, .modal-body td { border-bottom: 1px solid var(--border); }
+    .modal-body code { background: var(--bg); padding: 2px 6px; border-radius: 3px; font-size: 12px; }
+
     .calc-section {
       margin-bottom: 16px;
     }
@@ -832,6 +842,10 @@
       <div class="form-group"><label>Confirm Password</label><input type="password" id="regPassword2" placeholder="Confirm password"></div>
       <button class="auth-btn" id="btnRegister">Create Account</button>
     </div>
+    <div style="display:flex;gap:12px;margin-top:16px;justify-content:center">
+      <button class="btn" onclick="showDoc('readme')" style="font-size:12px;padding:6px 12px">App Documentation</button>
+      <button class="btn" onclick="showDoc('compliance')" style="font-size:12px;padding:6px 12px">Compliance &amp; Security</button>
+    </div>
   </div>
 </div>
 
@@ -857,6 +871,7 @@
     <button class="btn" id="btnExportXLSX" disabled>Export XLSX</button>
     <button class="btn" id="btnExportCSV" disabled>Export CSV</button>
     <button class="btn btn-danger" id="btnReset" disabled>Clear Data</button>
+    <button class="btn" onclick="showDoc('readme')">Docs</button>
     <button class="btn" id="btnLogout">Logout</button>
   </div>
 </div>
@@ -1110,6 +1125,21 @@
   <div class="processing-text" id="processingText">Processing data...</div>
 </div>
 
+<!-- Docs Modal -->
+<div class="modal-overlay" id="docsModalOverlay">
+  <div class="modal" style="max-width:900px;max-height:85vh;display:flex;flex-direction:column">
+    <div class="modal-header">
+      <div style="display:flex;gap:8px;align-items:center">
+        <h3 id="docsModalTitle">Documentation</h3>
+        <button class="btn" onclick="showDoc('readme')" style="font-size:11px;padding:4px 10px" id="docTabReadme">App Docs</button>
+        <button class="btn" onclick="showDoc('compliance')" style="font-size:11px;padding:4px 10px" id="docTabCompliance">Compliance</button>
+      </div>
+      <button class="modal-close" id="docsModalClose">&#10005;</button>
+    </div>
+    <div class="modal-body" id="docsModalBody" style="overflow-y:auto;flex:1;line-height:1.7"></div>
+  </div>
+</div>
+
 <script>
 // =============================================
 // SECURITY UTILITIES
@@ -1361,6 +1391,191 @@ async function updateUserPermission(userId, permission) {
 
 // Init - check auth on page load
 checkAuth();
+
+// =============================================
+// DOCS MODAL
+// =============================================
+const docsModalOverlay = document.getElementById('docsModalOverlay');
+document.getElementById('docsModalClose').addEventListener('click', () => docsModalOverlay.classList.remove('active'));
+docsModalOverlay.addEventListener('click', e => { if (e.target === docsModalOverlay) docsModalOverlay.classList.remove('active'); });
+
+const DOCS = {
+  readme: {
+    title: 'App Documentation',
+    content: `
+<h2>IQC Summary Statistics v2.0</h2>
+<p>A web-based Internal Quality Control (IQC) dashboard for clinical laboratory instruments. Import QC data from AU5800 and DxI analysers, compute summary statistics (Mean, SD, CV%, n), visualise trends with Levey-Jennings charts, and export audit-ready reports.</p>
+
+<h3>Features</h3>
+<ul>
+<li><b>CSV Import</b> — Drag-and-drop semicolon-delimited CSV files. Multiple files merged automatically.</li>
+<li><b>Summary Statistics</b> — Mean, SD, CV%, and n per analyte, per level, across four instruments (AU/DxI-1 to 4) plus combined.</li>
+<li><b>CV% Colour Coding</b> — Green (&lt;5%), amber (5–10%), red (&gt;10%).</li>
+<li><b>Calculation Drill-down</b> — Click any stat cell to see the full formula and data points.</li>
+<li><b>Levey-Jennings Charts</b> — Control charts with mean and &plusmn;1/2/3 SD lines.</li>
+<li><b>CV% Comparison Charts</b> — Bar charts comparing CV% across instruments.</li>
+<li><b>Filtering</b> — By protocol, date range, and per-analyte instrument exclusions.</li>
+<li><b>Report Management</b> — Save reports to the database and reload later.</li>
+<li><b>Export</b> — PDF, formatted XLSX, and plain CSV.</li>
+<li><b>User Management</b> — JWT auth, role-based access (admin/user), permission levels, admin approval workflow.</li>
+</ul>
+
+<h3>CSV Format</h3>
+<p>Semicolon-delimited with 13 columns:</p>
+<pre style="background:var(--bg);padding:12px;border-radius:6px;overflow-x:auto;font-size:12px">Protocol;Instrument;Parameter;Level;Date;Value;Target;SD;Status;Message;Comment;User;SampleId</pre>
+
+<h3>Data Processing Pipeline</h3>
+<ol>
+<li>Parse CSV — extract typed fields from semicolon-delimited rows</li>
+<li>Filter protocols — remove patient means, moving averages, eval protocols</li>
+<li>Filter status — remove manually rejected and rerun-requested rows</li>
+<li>Map instruments — rename raw names (e.g. AU5800 1 L &rarr; AU/DxI-1)</li>
+<li>Override levels — set level 4 for specific protocols (LAC, hsTnI, HBQC, etc.)</li>
+<li>Filter instruments — keep only known instruments (AU/DxI-1 through 4)</li>
+<li>Build results — group by parameter+level, compute stats per instrument and combined</li>
+</ol>
+
+<h3>Statistics</h3>
+<table style="width:100%;font-size:12px"><tbody>
+<tr><td style="padding:4px 8px"><b>Mean</b></td><td style="padding:4px 8px">sum(values) / n</td></tr>
+<tr><td style="padding:4px 8px"><b>SD</b></td><td style="padding:4px 8px">Sample standard deviation (n-1 denominator)</td></tr>
+<tr><td style="padding:4px 8px"><b>CV%</b></td><td style="padding:4px 8px">|SD / Mean| &times; 100</td></tr>
+</tbody></table>
+
+<h3>User Roles</h3>
+<table style="width:100%;font-size:12px"><thead><tr><th style="text-align:left;padding:6px">Role</th><th style="text-align:left;padding:6px">Permission</th><th style="text-align:left;padding:6px">Capabilities</th></tr></thead><tbody>
+<tr><td style="padding:4px 8px">Admin</td><td style="padding:4px 8px">full_access</td><td style="padding:4px 8px">All features + user management</td></tr>
+<tr><td style="padding:4px 8px">User</td><td style="padding:4px 8px">full_access</td><td style="padding:4px 8px">Import, export, save/load/delete reports</td></tr>
+<tr><td style="padding:4px 8px">User</td><td style="padding:4px 8px">view_only</td><td style="padding:4px 8px">Import, export, view reports</td></tr>
+</tbody></table>
+
+<h3>API Endpoints</h3>
+<table style="width:100%;font-size:12px"><thead><tr><th style="text-align:left;padding:6px">Method</th><th style="text-align:left;padding:6px">Endpoint</th><th style="text-align:left;padding:6px">Description</th></tr></thead><tbody>
+<tr><td style="padding:4px 8px">POST</td><td style="padding:4px 8px">/api/auth/register</td><td style="padding:4px 8px">Register (first user becomes admin)</td></tr>
+<tr><td style="padding:4px 8px">POST</td><td style="padding:4px 8px">/api/auth/login</td><td style="padding:4px 8px">Authenticate, receive JWT cookie</td></tr>
+<tr><td style="padding:4px 8px">POST</td><td style="padding:4px 8px">/api/auth/logout</td><td style="padding:4px 8px">Clear auth cookie</td></tr>
+<tr><td style="padding:4px 8px">GET</td><td style="padding:4px 8px">/api/auth/me</td><td style="padding:4px 8px">Current user info</td></tr>
+<tr><td style="padding:4px 8px">GET/POST</td><td style="padding:4px 8px">/api/reports</td><td style="padding:4px 8px">List / save reports</td></tr>
+<tr><td style="padding:4px 8px">GET/DELETE</td><td style="padding:4px 8px">/api/reports/:id</td><td style="padding:4px 8px">Fetch / delete report</td></tr>
+<tr><td style="padding:4px 8px">GET/PUT</td><td style="padding:4px 8px">/api/admin/users</td><td style="padding:4px 8px">User management (admin only)</td></tr>
+</tbody></table>
+`
+  },
+  compliance: {
+    title: 'Compliance & Security',
+    content: `
+<h2>Compliance &amp; Security Document</h2>
+<p style="color:var(--text-dim)">IQC Summary Statistics v2.0 — Security posture and compliance overview</p>
+
+<h3>1. Application Overview</h3>
+<p>Internal Quality Control dashboard for clinical laboratory instruments. Processes QC measurement data from AU5800 and DxI analysers. <b>No patient-identifiable information (PII) is processed or stored.</b></p>
+
+<h3>2. Data Classification</h3>
+<table style="width:100%;font-size:12px"><thead><tr><th style="text-align:left;padding:6px">Data Type</th><th style="text-align:left;padding:6px">Classification</th><th style="text-align:left;padding:6px">Encrypted at Rest</th><th style="text-align:left;padding:6px">Encrypted in Transit</th></tr></thead><tbody>
+<tr><td style="padding:4px 8px">QC measurements</td><td style="padding:4px 8px">Internal</td><td style="padding:4px 8px">AES-256</td><td style="padding:4px 8px">TLS 1.2+</td></tr>
+<tr><td style="padding:4px 8px">User emails</td><td style="padding:4px 8px">Internal</td><td style="padding:4px 8px">AES-256</td><td style="padding:4px 8px">TLS 1.2+</td></tr>
+<tr><td style="padding:4px 8px">Passwords</td><td style="padding:4px 8px">Credential</td><td style="padding:4px 8px">bcrypt hashed + AES-256</td><td style="padding:4px 8px">TLS 1.2+</td></tr>
+<tr><td style="padding:4px 8px">JWT tokens</td><td style="padding:4px 8px">Session</td><td style="padding:4px 8px">HttpOnly cookie</td><td style="padding:4px 8px">Secure flag (HTTPS only)</td></tr>
+<tr><td style="padding:4px 8px">CSV uploads</td><td style="padding:4px 8px">Transient</td><td style="padding:4px 8px" colspan="2">Browser memory only — never transmitted unless user saves a report</td></tr>
+</tbody></table>
+
+<h3>3. Infrastructure Security</h3>
+
+<h4>3.1 Application Hosting — Vercel</h4>
+<p>All application traffic is served over Vercel's global edge network with enforced HTTPS/TLS encryption. The platform provides:</p>
+<ul>
+<li><b>Automatic TLS certificate provisioning</b> — All endpoints encrypted in transit via TLS 1.2+ with no manual configuration</li>
+<li><b>DDoS mitigation</b> — Network-layer protection against volumetric attacks at the edge</li>
+<li><b>Immutable deployments</b> — Every deployment is atomic and immutable; rollback is instant</li>
+<li><b>Serverless isolation</b> — Each API function executes in an isolated runtime with no shared state between invocations</li>
+<li><b>SOC 2 Type II certified infrastructure</b> — Vercel's underlying platform is audited annually</li>
+<li><b>No persistent server state</b> — Serverless functions are stateless; no filesystem or memory persists between requests</li>
+</ul>
+<p>For organisations requiring enhanced controls, Vercel Enterprise adds: <b>Web Application Firewall (WAF)</b>, <b>SSO/SAML authentication</b> for deploy access, <b>IP allow-listing</b>, <b>audit logs</b> for all platform actions, and <b>custom SLA guarantees</b>.</p>
+
+<h4>3.2 Database — Neon Serverless PostgreSQL</h4>
+<p>All persistent data is stored in Neon's serverless PostgreSQL with the following security guarantees:</p>
+<ul>
+<li><b>Encryption at rest</b> — AES-256 encryption for all stored data</li>
+<li><b>Encryption in transit</b> — All database connections use TLS 1.2+</li>
+<li><b>Network isolation</b> — Database endpoints are not publicly enumerable; connections require a connection string with credentials</li>
+<li><b>Point-in-time recovery</b> — Automated backups enabling recovery to any point within the retention window</li>
+<li><b>Connection pooling</b> — Serverless connection handling prevents connection exhaustion attacks</li>
+</ul>
+<p>For organisations requiring enhanced controls, Neon Enterprise adds: <b>SOC 2 Type II certification</b>, <b>HIPAA Business Associate Agreement (BAA)</b>, <b>VPC peering</b> for private network connectivity, <b>IP allow-listing</b>, and <b>dedicated compute</b> with guaranteed resource isolation.</p>
+
+<h3>4. Application Security Controls</h3>
+
+<h4>4.1 Authentication</h4>
+<ul>
+<li>JWT tokens signed with HS256, stored in <b>HttpOnly, Secure, SameSite=Strict</b> cookies — immune to JavaScript-based token theft</li>
+<li>Passwords hashed with <b>bcrypt</b> (10 salt rounds) — computationally expensive to brute-force</li>
+<li>Authentication state re-validated against the database on every API request — revocation is effective immediately</li>
+<li><b>Rate limiting</b> — Login capped at 10 attempts per 15 minutes per IP; registration at 5 per 15 minutes</li>
+<li><b>No information disclosure</b> — Login failures return identical error messages regardless of failure reason</li>
+</ul>
+
+<h4>4.2 Authorisation</h4>
+<ul>
+<li><b>Admin approval required</b> — New accounts are pending until explicitly approved; no self-service access</li>
+<li><b>Role-based access control</b> — Admin and user roles with granular permission levels (full_access / view_only)</li>
+<li><b>Server-side enforcement</b> — All state-changing operations validated server-side; UI restrictions are defence-in-depth only</li>
+<li><b>IDOR protection</b> — Report deletion restricted to owner or admin; prevents cross-user data manipulation</li>
+<li><b>Admin self-protection</b> — Administrators cannot modify their own account to prevent accidental lockout</li>
+</ul>
+
+<h4>4.3 Input Validation &amp; Output Encoding</h4>
+<ul>
+<li><b>XSS prevention</b> — All user-supplied and CSV-derived content is HTML-escaped before DOM insertion via a centralised <code>escapeHtml()</code> function</li>
+<li><b>SQL injection prevention</b> — All database queries use parameterised tagged templates (Neon driver); no string concatenation</li>
+<li><b>CSRF protection</b> — SameSite=Strict cookie policy prevents cross-origin request forgery</li>
+<li><b>Content Security Policy</b> — CSP header restricts script execution to self and explicitly allowed CDN origins</li>
+<li><b>File upload validation</b> — CSV extension enforcement and 50MB size limit</li>
+<li><b>Error handling</b> — Generic error messages returned to clients; internal errors logged server-side only</li>
+</ul>
+
+<h3>5. Compliance Alignment</h3>
+
+<h4>ISO 15189 (Medical Laboratories)</h4>
+<table style="width:100%;font-size:12px"><thead><tr><th style="text-align:left;padding:6px">Requirement</th><th style="text-align:left;padding:6px">Status</th><th style="text-align:left;padding:6px">Detail</th></tr></thead><tbody>
+<tr><td style="padding:4px 8px">Data integrity</td><td style="padding:4px 8px;color:var(--success)">Met</td><td style="padding:4px 8px">Parameterised queries, input validation, output escaping</td></tr>
+<tr><td style="padding:4px 8px">Access control</td><td style="padding:4px 8px;color:var(--success)">Met</td><td style="padding:4px 8px">Role-based access with admin approval workflow</td></tr>
+<tr><td style="padding:4px 8px">Audit trail</td><td style="padding:4px 8px;color:var(--warning)">Partial</td><td style="padding:4px 8px">Report timestamps stored; granular audit log recommended for Enterprise</td></tr>
+<tr><td style="padding:4px 8px">Data backup</td><td style="padding:4px 8px;color:var(--success)">Met</td><td style="padding:4px 8px">Neon point-in-time recovery</td></tr>
+</tbody></table>
+
+<h4>NHS DSPT Alignment</h4>
+<table style="width:100%;font-size:12px"><thead><tr><th style="text-align:left;padding:6px">Assertion</th><th style="text-align:left;padding:6px">Status</th><th style="text-align:left;padding:6px">Detail</th></tr></thead><tbody>
+<tr><td style="padding:4px 8px">Access management</td><td style="padding:4px 8px;color:var(--success)">Met</td><td style="padding:4px 8px">Admin approval required for all accounts</td></tr>
+<tr><td style="padding:4px 8px">Encryption</td><td style="padding:4px 8px;color:var(--success)">Met</td><td style="padding:4px 8px">TLS in transit, AES-256 at rest</td></tr>
+<tr><td style="padding:4px 8px">Data minimisation</td><td style="padding:4px 8px;color:var(--success)">Met</td><td style="padding:4px 8px">No PII — QC instrument data only</td></tr>
+</tbody></table>
+
+<h3>6. Recommendations for Enhanced Security</h3>
+<table style="width:100%;font-size:12px"><thead><tr><th style="text-align:left;padding:6px">Enhancement</th><th style="text-align:left;padding:6px">Impact</th><th style="text-align:left;padding:6px">When Required</th></tr></thead><tbody>
+<tr><td style="padding:4px 8px">Multi-factor authentication</td><td style="padding:4px 8px">High</td><td style="padding:4px 8px">Enterprise / NHS Trust deployments</td></tr>
+<tr><td style="padding:4px 8px">Comprehensive audit logging</td><td style="padding:4px 8px">High</td><td style="padding:4px 8px">ISO 15189 full compliance</td></tr>
+<tr><td style="padding:4px 8px">Redis-backed rate limiting</td><td style="padding:4px 8px">Medium</td><td style="padding:4px 8px">High-availability deployments</td></tr>
+<tr><td style="padding:4px 8px">Subresource Integrity (SRI)</td><td style="padding:4px 8px">Medium</td><td style="padding:4px 8px">CDN supply-chain hardening</td></tr>
+<tr><td style="padding:4px 8px">Penetration testing</td><td style="padding:4px 8px">High</td><td style="padding:4px 8px">Before production deployment</td></tr>
+</tbody></table>
+
+<div style="margin-top:24px;padding:14px;background:var(--bg);border-radius:8px;font-size:11px;color:var(--text-dim)">
+<b>Document Control</b> — Version 1.0 | Date: 2026-04-03 | Application v2.0 | Classification: Internal | Review: Annually or on significant change
+</div>
+`
+  }
+};
+
+function showDoc(docId) {
+  const doc = DOCS[docId];
+  if (!doc) return;
+  document.getElementById('docsModalTitle').textContent = doc.title;
+  document.getElementById('docsModalBody').innerHTML = doc.content;
+  document.getElementById('docTabReadme').style.background = docId === 'readme' ? 'var(--accent)' : '';
+  document.getElementById('docTabCompliance').style.background = docId === 'compliance' ? 'var(--accent)' : '';
+  docsModalOverlay.classList.add('active');
+}
 
 // =============================================
 // QC AUDIT TOOL - Complete Processing Engine
