@@ -1,6 +1,7 @@
 import { neon } from '@neondatabase/serverless';
 import bcrypt from 'bcryptjs';
 import { SignJWT } from 'jose';
+import { logActivity } from '../lib/activity.js';
 
 // Simple in-memory rate limiter
 const registerAttempts = new Map();
@@ -62,9 +63,11 @@ export default async function handler(req, res) {
         .sign(secret);
 
       res.setHeader('Set-Cookie', `token=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800`);
+      await logActivity(user.id, 'register', 'First user registered as admin');
       return res.status(201).json({ success: true, user: { email: user.email, role: user.role, permission: user.permission } });
     }
 
+    await logActivity(user.id, 'register', 'New user registered (pending approval)');
     res.status(201).json({ success: true, pending: true, message: 'Account created. Awaiting admin approval.' });
   } catch (err) {
     console.error('Registration error:', err);

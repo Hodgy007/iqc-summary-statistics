@@ -14,6 +14,7 @@ A web-based Internal Quality Control (IQC) dashboard for clinical laboratory ins
 - **Report Management** — Save reports to the database and reload them later.
 - **Export** — PDF reports (jsPDF), formatted XLSX (xlsx-js-style), and plain CSV.
 - **User Management** — JWT-based authentication with role-based access (admin/user), permission levels (full_access/view_only), and admin approval workflow.
+- **Activity Log** — Tracks all user actions (logins, data processing, exports, report save/load/delete, admin actions) with timestamps. Viewable by admins in the Settings panel.
 - **Responsive** — Mobile-friendly layout with wrapping header buttons and scrollable tables.
 
 ## Tech Stack
@@ -42,12 +43,15 @@ iqc-summary-statistics/
 │   │   ├── logout.js       # POST /api/auth/logout
 │   │   └── me.js           # GET  /api/auth/me
 │   ├── admin/
-│   │   └── users.js        # GET/PUT /api/admin/users
+│   │   ├── users.js        # GET/PUT /api/admin/users
+│   │   └── activity.js     # GET /api/admin/activity
+│   ├── activity.js          # POST /api/activity (client-side logging)
 │   ├── reports.js           # GET/POST /api/reports
 │   ├── reports/
 │   │   └── [id].js         # GET/DELETE /api/reports/:id
 │   ├── lib/
-│   │   └── auth.js         # JWT verification middleware
+│   │   ├── auth.js         # JWT verification middleware
+│   │   └── activity.js     # Activity logging helper
 │   └── setup.js            # GET/POST /api/setup (init DB tables)
 ├── tests/
 │   ├── frontend-logic.js   # Extracted frontend functions for testing
@@ -85,6 +89,13 @@ iqc-summary-statistics/
 |--------|----------|------------|-------------|
 | GET | `/api/admin/users` | admin | List all users. |
 | PUT | `/api/admin/users` | admin | Update user status (approved/denied/pending) or permission (view_only/full_access). |
+| GET | `/api/admin/activity` | admin | Fetch activity log (supports `limit` and `offset` query params). |
+
+### Activity Logging
+
+| Method | Endpoint | Permission | Description |
+|--------|----------|------------|-------------|
+| POST | `/api/activity` | Any authenticated | Log a client-side action (data_process, export_pdf, export_xlsx, export_csv, data_clear). |
 
 ### Setup
 

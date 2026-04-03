@@ -1091,6 +1091,11 @@
       <h3>Registered Users</h3>
       <div id="usersList">Loading...</div>
     </div>
+    <div class="settings-section" style="margin-top:24px">
+      <h3>Activity Log</h3>
+      <div id="activityLog" style="margin-top:12px">Loading...</div>
+      <div id="activityPagination" style="display:flex;gap:8px;margin-top:12px;align-items:center"></div>
+    </div>
   </div>
 
 </div>
@@ -1153,6 +1158,14 @@ function escapeHtml(str) {
 }
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+
+function logUserActivity(action, detail) {
+  fetch('/api/activity', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, detail })
+  }).catch(() => {}); // fire-and-forget
+}
 
 // =============================================
 // AUTHENTICATION
@@ -1314,6 +1327,7 @@ document.getElementById('btnSettings').addEventListener('click', () => {
   document.getElementById('resultsSection').classList.add('hidden');
   document.getElementById('settingsSection').classList.remove('hidden');
   loadUsers();
+  loadActivityLog();
 });
 
 document.getElementById('btnBackFromSettings').addEventListener('click', () => {
@@ -1389,6 +1403,101 @@ async function updateUserPermission(userId, permission) {
   } catch (err) { alert('Error: ' + err.message); }
 }
 
+// =============================================
+// ACTIVITY LOG
+// =============================================
+let activityPage = 0;
+const ACTIVITY_PAGE_SIZE = 25;
+
+async function loadActivityLog(page = 0) {
+  activityPage = page;
+  const container = document.getElementById('activityLog');
+  const pagination = document.getElementById('activityPagination');
+  container.innerHTML = '<div style="color:var(--text-dim)">Loading activity...</div>';
+
+  try {
+    const offset = page * ACTIVITY_PAGE_SIZE;
+    const resp = await fetch(`/api/admin/activity?limit=${ACTIVITY_PAGE_SIZE}&offset=${offset}`);
+    if (!resp.ok) { container.innerHTML = '<div class="auth-error">Failed to load activity log</div>'; return; }
+    const { logs, total } = await resp.json();
+
+    if (logs.length === 0 && page === 0) {
+      container.innerHTML = '<div style="color:var(--text-dim)">No activity recorded yet.</div>';
+      pagination.innerHTML = '';
+      return;
+    }
+
+    const actionLabels = {
+      login: 'Signed in',
+      register: 'Registered',
+      report_save: 'Saved report',
+      report_load: 'Loaded report',
+      report_delete: 'Deleted report',
+      data_process: 'Processed data',
+      export_pdf: 'Exported PDF',
+      export_xlsx: 'Exported XLSX',
+      export_csv: 'Exported CSV',
+      data_clear: 'Cleared data',
+      user_update: 'Updated user',
+    };
+
+    const actionColors = {
+      login: 'var(--success)',
+      register: 'var(--accent)',
+      report_save: 'var(--inst2)',
+      report_load: 'var(--inst3)',
+      report_delete: 'var(--danger)',
+      data_process: 'var(--warning)',
+      export_pdf: 'var(--text-dim)',
+      export_xlsx: 'var(--text-dim)',
+      export_csv: 'var(--text-dim)',
+      data_clear: 'var(--danger)',
+      user_update: 'var(--warning)',
+    };
+
+    container.innerHTML = `
+      <div class="table-container">
+        <table style="font-size:12px">
+          <thead><tr>
+            <th style="text-align:left">Time</th>
+            <th style="text-align:left">User</th>
+            <th style="text-align:left">Action</th>
+            <th style="text-align:left">Detail</th>
+          </tr></thead>
+          <tbody>
+            ${logs.map(l => {
+              const time = new Date(l.created_at).toLocaleString('en-GB', {
+                day: '2-digit', month: 'short', year: 'numeric',
+                hour: '2-digit', minute: '2-digit', second: '2-digit'
+              });
+              const label = actionLabels[l.action] || l.action;
+              const color = actionColors[l.action] || 'var(--text)';
+              return `<tr>
+                <td style="white-space:nowrap">${escapeHtml(time)}</td>
+                <td>${escapeHtml(l.email || 'Unknown')}</td>
+                <td><span style="color:${color};font-weight:600">${escapeHtml(label)}</span></td>
+                <td style="color:var(--text-dim);max-width:300px;overflow:hidden;text-overflow:ellipsis">${escapeHtml(l.detail)}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    const totalPages = Math.ceil(total / ACTIVITY_PAGE_SIZE);
+    pagination.innerHTML = `
+      <span style="font-size:12px;color:var(--text-dim)">Showing ${offset + 1}-${Math.min(offset + ACTIVITY_PAGE_SIZE, total)} of ${total}</span>
+      <button class="btn" style="padding:4px 10px;font-size:11px" onclick="loadActivityLog(0)" ${page === 0 ? 'disabled' : ''}>First</button>
+      <button class="btn" style="padding:4px 10px;font-size:11px" onclick="loadActivityLog(${page - 1})" ${page === 0 ? 'disabled' : ''}>Prev</button>
+      <button class="btn" style="padding:4px 10px;font-size:11px" onclick="loadActivityLog(${page + 1})" ${page >= totalPages - 1 ? 'disabled' : ''}>Next</button>
+      <button class="btn" style="padding:4px 10px;font-size:11px" onclick="loadActivityLog(${totalPages - 1})" ${page >= totalPages - 1 ? 'disabled' : ''}>Last</button>
+    `;
+  } catch (err) {
+    container.innerHTML = `<div class="auth-error">Error: ${escapeHtml(err.message)}</div>`;
+    pagination.innerHTML = '';
+  }
+}
+
 // Init - check auth on page load
 checkAuth();
 
@@ -1418,6 +1527,7 @@ const DOCS = {
 <li><b>Report Management</b> — Save reports to the database and reload later.</li>
 <li><b>Export</b> — PDF, formatted XLSX, and plain CSV.</li>
 <li><b>User Management</b> — JWT auth, role-based access (admin/user), permission levels, admin approval workflow.</li>
+<li><b>Activity Log</b> — Tracks logins, data processing, exports, report operations, and admin actions. Viewable in Settings (admin only).</li>
 </ul>
 
 <h3>CSV Format</h3>
@@ -1540,7 +1650,7 @@ const DOCS = {
 <table style="width:100%;font-size:12px"><thead><tr><th style="text-align:left;padding:6px">Requirement</th><th style="text-align:left;padding:6px">Status</th><th style="text-align:left;padding:6px">Detail</th></tr></thead><tbody>
 <tr><td style="padding:4px 8px">Data integrity</td><td style="padding:4px 8px;color:var(--success)">Met</td><td style="padding:4px 8px">Parameterised queries, input validation, output escaping</td></tr>
 <tr><td style="padding:4px 8px">Access control</td><td style="padding:4px 8px;color:var(--success)">Met</td><td style="padding:4px 8px">Role-based access with admin approval workflow</td></tr>
-<tr><td style="padding:4px 8px">Audit trail</td><td style="padding:4px 8px;color:var(--warning)">Partial</td><td style="padding:4px 8px">Report timestamps stored; granular audit log recommended for Enterprise</td></tr>
+<tr><td style="padding:4px 8px">Audit trail</td><td style="padding:4px 8px;color:var(--success)">Met</td><td style="padding:4px 8px">Activity log tracks all user actions with timestamps and user attribution</td></tr>
 <tr><td style="padding:4px 8px">Data backup</td><td style="padding:4px 8px;color:var(--success)">Met</td><td style="padding:4px 8px">Neon point-in-time recovery</td></tr>
 </tbody></table>
 
@@ -1554,7 +1664,7 @@ const DOCS = {
 <h3>6. Recommendations for Enhanced Security</h3>
 <table style="width:100%;font-size:12px"><thead><tr><th style="text-align:left;padding:6px">Enhancement</th><th style="text-align:left;padding:6px">Impact</th><th style="text-align:left;padding:6px">When Required</th></tr></thead><tbody>
 <tr><td style="padding:4px 8px">Multi-factor authentication</td><td style="padding:4px 8px">High</td><td style="padding:4px 8px">Enterprise / NHS Trust deployments</td></tr>
-<tr><td style="padding:4px 8px">Comprehensive audit logging</td><td style="padding:4px 8px">High</td><td style="padding:4px 8px">ISO 15189 full compliance</td></tr>
+<tr><td style="padding:4px 8px">External log export (SIEM)</td><td style="padding:4px 8px">Medium</td><td style="padding:4px 8px">Tamper-resistant long-term retention</td></tr>
 <tr><td style="padding:4px 8px">Redis-backed rate limiting</td><td style="padding:4px 8px">Medium</td><td style="padding:4px 8px">High-availability deployments</td></tr>
 <tr><td style="padding:4px 8px">Subresource Integrity (SRI)</td><td style="padding:4px 8px">Medium</td><td style="padding:4px 8px">CDN supply-chain hardening</td></tr>
 <tr><td style="padding:4px 8px">Penetration testing</td><td style="padding:4px 8px">High</td><td style="padding:4px 8px">Before production deployment</td></tr>
@@ -2112,6 +2222,7 @@ function parseDate(dateStr) {
 // EXPORT
 // =============================================
 function exportPDF() {
+  logUserActivity('export_pdf', `${resultsData.length} analyte groups`);
   try {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
@@ -2240,6 +2351,7 @@ function exportPDF() {
 }
 
 function exportXLSX() {
+  logUserActivity('export_xlsx', `${resultsData.length} analyte groups`);
   const wb = XLSX.utils.book_new();
   const instruments = ['AU/DxI-1', 'AU/DxI-2', 'AU/DxI-3', 'AU/DxI-4'];
   const subHeaders = ['Mean', 'SD', 'CV', 'n'];
@@ -2370,6 +2482,7 @@ function exportXLSX() {
 }
 
 function exportCSV() {
+  logUserActivity('export_csv', `${resultsData.length} analyte groups`);
   const instruments = ['AU/DxI-1', 'AU/DxI-2', 'AU/DxI-3', 'AU/DxI-4'];
   let csv = 'Analyte,Level';
   for (const inst of [...instruments, 'Combined']) {
@@ -2511,6 +2624,8 @@ btnProcess.addEventListener('click', async () => {
     document.getElementById('btnReport').disabled = false;
     document.getElementById('btnSaveReport').disabled = false;
     document.getElementById('btnReset').disabled = false;
+
+    logUserActivity('data_process', `${rawData.length} records, ${resultsData.length} analyte groups`);
 
   } catch (err) {
     alert('Error processing data: ' + err.message);
@@ -2802,6 +2917,7 @@ document.getElementById('btnReport').addEventListener('click', exportPDF);
 document.getElementById('btnExportXLSX').addEventListener('click', exportXLSX);
 document.getElementById('btnExportCSV').addEventListener('click', exportCSV);
 document.getElementById('btnReset').addEventListener('click', () => {
+  logUserActivity('data_clear', 'Cleared all data');
   rawData = [];
   processedData = [];
   resultsData = [];

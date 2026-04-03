@@ -97,7 +97,7 @@ All persistent data is stored in Neon's managed PostgreSQL service:
 |-------------|--------|--------|
 | Data integrity | **Met** | Parameterised queries, input validation, output escaping |
 | Access control | **Met** | Role-based access with mandatory admin approval workflow |
-| Audit trail | **Partial** | Report creation timestamps stored; granular user action logging recommended for full compliance |
+| Audit trail | **Met** | Comprehensive activity log tracks all user actions (logins, data processing, exports, report operations, admin actions) with timestamps and user attribution |
 | Data backup | **Met** | Neon point-in-time recovery (retention window tier-dependent) |
 | Competence management | Out of scope | Organisational responsibility |
 
@@ -121,7 +121,7 @@ All persistent data is stored in Neon's managed PostgreSQL service:
 | No MFA | Single-factor auth only | Mitigated by admin approval workflow, rate limiting, and HttpOnly tokens |
 | In-memory rate limiting | Resets on serverless cold start | Acceptable for current scale; Redis-backed limiter recommended for high-traffic deployments |
 | 7-day JWT expiry | Extended window if token compromised | Every request re-checks user status from DB; account suspension is effective immediately |
-| No granular audit log | Limited forensic capability | Report timestamps provide basic trail; comprehensive logging recommended for Enterprise |
+| Activity log in application DB | Log retention tied to database lifecycle | Consider exporting logs to external SIEM for long-term retention and tamper resistance |
 
 ---
 
@@ -130,7 +130,7 @@ All persistent data is stored in Neon's managed PostgreSQL service:
 | Enhancement | Impact | When Required |
 |-------------|--------|---------------|
 | Multi-factor authentication | Eliminates single-factor credential risk | Enterprise / NHS Trust deployments |
-| Comprehensive audit logging | Full forensic and compliance trail | ISO 15189 full compliance |
+| External log export (SIEM) | Tamper-resistant audit trail with long-term retention | ISO 15189 full compliance / forensic requirements |
 | Redis-backed rate limiting | Persistent rate limiting across cold starts | High-availability deployments |
 | Subresource Integrity (SRI) | Hardens against CDN supply-chain attacks | All production deployments |
 | Penetration testing | Independent validation of security posture | Before production deployment |

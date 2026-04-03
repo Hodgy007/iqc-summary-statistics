@@ -1,5 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import { requireAuth } from './lib/auth.js';
+import { logActivity } from './lib/activity.js';
 
 export default async function handler(req, res) {
   const minPerm = req.method === 'GET' ? undefined : { permission: 'full_access' };
@@ -37,6 +38,7 @@ export default async function handler(req, res) {
         VALUES (${name}, ${user.id}, ${JSON.stringify(raw_data)}, ${JSON.stringify(results_data)}, ${JSON.stringify(exclusions || [])}, ${JSON.stringify(filters || {})})
         RETURNING id, name, created_at
       `;
+      await logActivity(user.id, 'report_save', `Saved report: ${name}`);
       res.status(201).json(rows[0]);
     } catch (err) {
       console.error('Report save error:', err);

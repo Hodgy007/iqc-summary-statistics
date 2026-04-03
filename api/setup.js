@@ -31,6 +31,15 @@ export default async function handler(req, res) {
         created_at TIMESTAMPTZ DEFAULT NOW()
       )
     `;
+    await sql`
+      CREATE TABLE IF NOT EXISTS activity_log (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),
+        action TEXT NOT NULL,
+        detail TEXT DEFAULT '',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
     // Add user_id column if it doesn't exist (for existing installations)
     await sql`
       DO $$ BEGIN
