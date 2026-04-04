@@ -24,10 +24,32 @@ export default async function handler(req, res) {
           ORDER BY chunk_type, chunk_index
         `;
         if (chunks.length > 0) {
-          const rawChunks = chunks.filter(c => c.chunk_type === 'raw_data').flatMap(c => JSON.parse(c.data));
-          const resChunks = chunks.filter(c => c.chunk_type === 'results_data').flatMap(c => JSON.parse(c.data));
-          if (rawChunks.length > 0) report.raw_data = rawChunks;
-          if (resChunks.length > 0) report.results_data = resChunks;
+          // Check if data is base64 gzip (starts with H4sI) or raw JSON (starts with [)
+          function parseChunkData(data) {
+            if (typeof data === 'string' && data.startsWith('H4sI')) {
+              // Compressed base64 gzip - return as-is for client-side decompression
+              return { compressed: data };
+            }
+            // Raw JSON string or already-parsed object
+            return typeof data === 'string' ? JSON.parse(data) : data;
+          }
+
+          const rawChunkData = chunks.filter(c => c.chunk_type === 'raw_data');
+          const resChunkData = chunks.filter(c => c.chunk_type === 'results_data');
+
+          // Check if any chunks are compressed
+          const hasCompressed = chunks.some(c => typeof c.data === 'string' && c.data.startsWith('H4sI'));
+          if (hasCompressed) {
+            // Return chunks for client-side decompression
+            report._chunks = chunks.map(c => ({ type: c.chunk_type, index: c.chunk_index, data: c.data }));
+            report.raw_data = report.raw_data || [];
+            report.results_data = report.results_data || [];
+          } else {
+            const rawItems = rawChunkData.flatMap(c => JSON.parse(c.data));
+            const resItems = resChunkData.flatMap(c => JSON.parse(c.data));
+            if (rawItems.length > 0) report.raw_data = rawItems;
+            if (resItems.length > 0) report.results_data = resItems;
+          }
         }
       } catch {
         // report_chunks table may not exist yet - use inline data
@@ -72,18 +94,26 @@ export default async function handler(req, res) {
         return res.status(403).json({ error: 'You can only update your own reports' });
       }
 
-      const { results_data_chunk, raw_data_chunk, chunk_index } = req.body;
+      const { compressed, chunk_type, chunk_index, results_data_chunk, raw_data_chunk } = req.body;
+
+      // New compressed format
+      if (compressed && chunk_type) {
+        await sql`
+          INSERT INTO report_chunks (report_id, chunk_type, chunk_index, data)
+          VALUES (${id}, ${chunk_type}, ${chunk_index || 0}, ${compressed})
+        `;
+        return res.status(200).json({ id, chunk_type, chunk_index });
+      }
+
+      // Legacy uncompressed format
       if (!results_data_chunk && !raw_data_chunk) {
         return res.status(400).json({ error: 'Chunk data required' });
       }
-
-      const chunkType = raw_data_chunk ? 'raw_data' : 'results_data';
-      const chunkData = raw_data_chunk || results_data_chunk;
-      const idx = chunk_index || 0;
-
+      const cType = raw_data_chunk ? 'raw_data' : 'results_data';
+      const cData = raw_data_chunk || results_data_chunk;
       await sql`
         INSERT INTO report_chunks (report_id, chunk_type, chunk_index, data)
-        VALUES (${id}, ${chunkType}, ${idx}, ${JSON.stringify(chunkData)})
+        VALUES (${id}, ${cType}, ${chunk_index || 0}, ${JSON.stringify(cData)})
       `;
 
       res.status(200).json({ id, chunk_type: chunkType, chunk_index: idx });
