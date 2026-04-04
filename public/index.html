@@ -3137,8 +3137,8 @@ function updateSaveSizeInfo() {
   const rawMB = (rawSize / 1024 / 1024).toFixed(2);
   const resMB = (resSize / 1024 / 1024).toFixed(2);
   const totalMB = (totalSize / 1024 / 1024).toFixed(2);
-  const rawChunks = Math.ceil(rawSize / (500 * 1024));
-  const resChunks = Math.ceil(resSize / (500 * 1024));
+  const rawChunks = Math.ceil(rawSize / (3.5 * 1024 * 1024));
+  const resChunks = Math.ceil(resSize / (3.5 * 1024 * 1024));
 
   info.innerHTML = `<strong>Estimated save size:</strong> ${totalMB} MB total<br>` +
     `Raw data: ${rawMB} MB &middot; ${dataRows.length.toLocaleString()} rows &middot; ${rawChunks} chunk${rawChunks !== 1 ? 's' : ''}<br>` +
@@ -3206,7 +3206,7 @@ document.getElementById('saveModalConfirm').addEventListener('click', async () =
       lv: r.level, dt: r.date, v: r.value, st: r.status, si: r.sampleId || ''
     }));
 
-    const CHUNK_SIZE = 500 * 1024; // 500KB chunks to stay under Vercel 4.5MB limit with metadata
+    const CHUNK_SIZE = 3.5 * 1024 * 1024; // 3.5MB chunks to stay under Vercel 4.5MB body limit
 
     // Split raw_data into chunks
     const rawDataChunks = [];
