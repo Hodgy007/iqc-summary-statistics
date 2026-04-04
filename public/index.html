@@ -2539,7 +2539,7 @@ function handleFiles(files) {
   }
   renderFileList();
   if (uploadedFiles.length > 0) {
-    btnProcess.click();
+    processFiles();
   }
 }
 
@@ -2558,7 +2558,7 @@ function removeFile(idx) {
   btnProcess.disabled = uploadedFiles.length === 0;
 }
 
-btnProcess.addEventListener('click', async () => {
+async function processFiles() {
   const overlay = document.getElementById('processingOverlay');
   overlay.classList.add('active');
 
@@ -2633,7 +2633,7 @@ btnProcess.addEventListener('click', async () => {
   }
 
   overlay.classList.remove('active');
-});
+}
 
 // Tabs
 document.querySelectorAll('.tab').forEach(tab => {
