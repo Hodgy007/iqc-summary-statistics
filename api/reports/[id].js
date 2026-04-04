@@ -40,6 +40,30 @@ export default async function handler(req, res) {
       console.error('Report delete error:', err);
       res.status(500).json({ error: 'Failed to delete report' });
     }
+  } else if (req.method === 'PATCH') {
+    try {
+      const rows = await sql`SELECT user_id FROM reports WHERE id = ${id}`;
+      if (rows.length === 0) return res.status(404).json({ error: 'Report not found' });
+      if (rows[0].user_id && rows[0].user_id !== user.id && user.role !== 'admin') {
+        return res.status(403).json({ error: 'You can only update your own reports' });
+      }
+
+      const { results_data_chunk } = req.body;
+      if (!results_data_chunk) return res.status(400).json({ error: 'Chunk data required' });
+
+      // Append chunk to existing results_data
+      const updated = await sql`
+        UPDATE reports
+        SET results_data = COALESCE(results_data, '[]'::jsonb) || ${JSON.stringify(results_data_chunk)}::jsonb
+        WHERE id = ${id}
+        RETURNING id, name, created_at
+      `;
+
+      res.status(200).json(updated[0]);
+    } catch (err) {
+      console.error('Report chunk update error:', err);
+      res.status(500).json({ error: 'Failed to append chunk', detail: err.message });
+    }
   } else {
     res.status(405).json({ error: 'Method not allowed' });
   }

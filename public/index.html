@@ -3146,10 +3146,31 @@ document.getElementById('saveModalConfirm').addEventListener('click', async () =
       lv: r.level, dt: r.date, v: r.value, st: r.status, si: r.sampleId || ''
     }));
 
-    const payload = JSON.stringify({
+    const CHUNK_SIZE = 3 * 1024 * 1024; // 3MB chunks to stay under Vercel 4.5MB limit
+    const resultsChunks = [];
+    let currentChunk = [];
+    let currentSize = 0;
+
+    // Split results_data into chunks
+    for (const item of saveResults) {
+      const itemStr = JSON.stringify(item);
+      const itemSize = itemStr.length;
+      if (currentSize + itemSize > CHUNK_SIZE && currentChunk.length > 0) {
+        resultsChunks.push([...currentChunk]);
+        currentChunk = [item];
+        currentSize = itemSize;
+      } else {
+        currentChunk.push(item);
+        currentSize += itemSize;
+      }
+    }
+    if (currentChunk.length > 0) resultsChunks.push(currentChunk);
+
+    // First request: POST with metadata and first chunk
+    const firstPayload = JSON.stringify({
       name,
       raw_data: slimData,
-      results_data: saveResults,
+      results_data: resultsChunks[0] || [],
       exclusions: scope === 'filtered' ? exclusions : [],
       filters: {
         protocol: scope === 'filtered' ? document.getElementById('filterProtocol').value : 'all',
@@ -3160,25 +3181,50 @@ document.getElementById('saveModalConfirm').addEventListener('click', async () =
       }
     });
 
-    const sizeMB = (payload.length / 1024 / 1024).toFixed(1);
-    if (payload.length > 10 * 1024 * 1024) {
-      alert(`Report data is too large to save (${sizeMB} MB). Try saving with filters applied to reduce the dataset.`);
+    const sizeMB = (firstPayload.length / 1024 / 1024).toFixed(1);
+    if (firstPayload.length > 4.5 * 1024 * 1024) {
+      alert('Initial payload too large. Try saving with filters applied to reduce the dataset.');
       btn.disabled = false;
       btn.textContent = 'Save Report';
       return;
     }
 
+    btn.textContent = `Saving (1/${resultsChunks.length})...`;
     const resp = await fetch('/api/reports', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: payload
+      body: firstPayload
     });
     const data = await resp.json();
-    if (resp.ok) {
-      alert(`Report saved: ${data.name} (${sizeMB} MB)`);
-    } else {
+    if (!resp.ok) {
       alert('Error saving: ' + (data.error || data.detail || 'Unknown error'));
+      btn.disabled = false;
+      btn.textContent = 'Save Report';
+      return;
     }
+
+    const reportId = data.id;
+
+    // Send remaining chunks via PATCH
+    for (let i = 1; i < resultsChunks.length; i++) {
+      btn.textContent = `Saving (${i + 1}/${resultsChunks.length})...`;
+      const chunkPayload = JSON.stringify({ results_data_chunk: resultsChunks[i] });
+      const chunkResp = await fetch(`/api/reports/${reportId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: chunkPayload
+      });
+      const chunkData = await chunkResp.json();
+      if (!chunkResp.ok) {
+        alert('Error uploading chunk ' + (i + 1) + ': ' + (chunkData.error || 'Unknown error'));
+        btn.disabled = false;
+        btn.textContent = 'Save Report';
+        return;
+      }
+    }
+
+    const totalMB = (resultsChunks.reduce((s, c) => s + c.length, 0)).toLocaleString();
+    alert(`Report saved: ${data.name} (${totalMB} rows in ${resultsChunks.length} chunks)`);
   } catch (err) {
     alert('Error saving report: ' + err.message);
   }
