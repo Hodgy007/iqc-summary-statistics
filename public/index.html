@@ -3278,7 +3278,8 @@ document.getElementById('saveModalConfirm').addEventListener('click', async () =
       return;
     }
 
-    alert(`Report saved: ${data.name}\nUpload: ${bodyMB}MB in ${((t1-t0)/1000).toFixed(1)}s\n${slimData.length.toLocaleString()} raw rows, ${saveResults.length.toLocaleString()} results`);
+    const tm = data._timing || {};
+    alert(`Report saved: ${data.name}\n\nTotal: ${((t1-t0)/1000).toFixed(1)}s (${bodyMB}MB upload)\n\nServer timing:\n  Auth: ${tm.authMs || '?'}ms\n  Bundle: ${tm.bundleMs || '?'}ms (${tm.bundleSizeKB || '?'}KB)\n  DB INSERT: ${tm.insertMs || '?'}ms\n  Server total: ${tm.totalMs || '?'}ms`);
   } catch (err) {
     alert('Error saving report: ' + err.message);
   }
