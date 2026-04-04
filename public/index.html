@@ -2268,6 +2268,14 @@ function formatDate(dateStr) {
   return dateStr;
 }
 
+// Convert ISO date (yyyy-mm-dd) to UK display format (dd/mm/yyyy)
+function isoToUK(iso) {
+  if (!iso) return iso;
+  const p = iso.split('-');
+  if (p.length === 3) return `${p[2]}/${p[1]}/${p[0]}`;
+  return iso;
+}
+
 // =============================================
 // EXPORT
 // =============================================
@@ -2660,10 +2668,10 @@ async function processFiles() {
     }).filter(Boolean))].sort();
     document.getElementById('filterDateFrom').innerHTML =
       '<option value="">Earliest</option>' +
-      uniqueDates.map(d => `<option value="${d}">${d}</option>`).join('');
+      uniqueDates.map(d => `<option value="${d}">${isoToUK(d)}</option>`).join('');
     document.getElementById('filterDateTo').innerHTML =
       '<option value="">Latest</option>' +
-      uniqueDates.map(d => `<option value="${d}">${d}</option>`).join('');
+      uniqueDates.map(d => `<option value="${d}">${isoToUK(d)}</option>`).join('');
 
     document.getElementById('processingText').textContent = 'Rendering...';
     await new Promise(r => setTimeout(r, 50));
@@ -3259,15 +3267,15 @@ async function loadReport(id) {
       if (!dateMax && range.max) dateMax = range.max.substring(0, 10);
     }
     document.getElementById('filterDateFrom').innerHTML =
-      '<option value="">Earliest</option>' + (dateMin ? `<option value="${dateMin}" selected>${dateMin}</option>` : '');
+      '<option value="">Earliest</option>' + (dateMin ? `<option value="${dateMin}" selected>${isoToUK(dateMin)}</option>` : '');
     document.getElementById('filterDateTo').innerHTML =
-      '<option value="">Latest</option>' + (dateMax ? `<option value="${dateMax}" selected>${dateMax}</option>` : '');
+      '<option value="">Latest</option>' + (dateMax ? `<option value="${dateMax}" selected>${isoToUK(dateMax)}</option>` : '');
 
     // Update stats bar with saved date range
     document.getElementById('statsBar').innerHTML = `
       <div class="stat-card" style="max-width:300px">
         <div class="label">Date Range</div>
-        <div class="value" style="font-size:14px">${dateMin || 'N/A'} — ${dateMax || 'N/A'}</div>
+        <div class="value" style="font-size:14px">${isoToUK(dateMin) || 'N/A'} — ${isoToUK(dateMax) || 'N/A'}</div>
       </div>
     `;
 
