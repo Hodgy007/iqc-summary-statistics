@@ -3125,11 +3125,29 @@ document.getElementById('saveModalConfirm').addEventListener('click', async () =
   const scope = document.querySelector('input[name="saveScope"]:checked').value;
   saveModalOverlay.classList.remove('active');
 
-  // Compute the results to save
-  const saveResults = scope === 'all' ? buildResults(processData(rawData)) : resultsData;
+  // Compute the results to save (apply table-level filters for 'filtered' scope)
+  let saveResults;
+  if (scope === 'all') {
+    saveResults = buildResults(processData(rawData));
+  } else {
+    const search = document.getElementById('filterSearch').value.toLowerCase();
+    const cvFilter = document.getElementById('filterCV').value;
+    const analyteFilter = document.getElementById('filterAnalyte').value;
+    saveResults = resultsData.slice();
+    if (analyteFilter !== 'all') saveResults = saveResults.filter(r => r.parameter === analyteFilter);
+    if (search) saveResults = saveResults.filter(r => r.parameter.toLowerCase().includes(search));
+    if (cvFilter === 'high') saveResults = saveResults.filter(r => r.combined.cv > 10);
+    if (cvFilter === 'warn') saveResults = saveResults.filter(r => r.combined.cv > 5);
+  }
 
-  // Compute date range from the dataset being saved
-  const saveData = scope === 'all' ? processData(rawData) : processedData;
+  // Compute filtered raw data matching visible results
+  let saveData;
+  if (scope === 'all') {
+    saveData = processData(rawData);
+  } else {
+    const visibleKeys = new Set(saveResults.map(r => r.parameter + '|' + r.level));
+    saveData = processedData.filter(r => visibleKeys.has(r.parameter + '|' + r.level));
+  }
   const datedSave = saveData.map(r => ({ str: r.date, t: parseDate(r.date).getTime() })).filter(d => d.t > 0);
   const saveRangeMin = datedSave.length ? parseDate(datedSave.reduce((m, d) => d.t < m.t ? d : m).str).toISOString().split('T')[0] : '';
   const saveRangeMax = datedSave.length ? parseDate(datedSave.reduce((m, d) => d.t > m.t ? d : m).str).toISOString().split('T')[0] : '';
@@ -3184,9 +3202,15 @@ document.getElementById('saveModalConfirm').addEventListener('click', async () =
     }
     if (currentChunk.length > 0) resultsChunks.push(currentChunk);
 
-    // Calculate total data size
-    const totalDataSize = JSON.stringify(slimData).length + JSON.stringify(saveResults).length;
-    const totalDataMB = (totalDataSize / 1024 / 1024).toFixed(2);
+    // Calculate per-section sizes
+    const rawDataSize = JSON.stringify(slimData).length;
+    const resultsSize = JSON.stringify(saveResults).length;
+    const rawMB = (rawDataSize / 1024 / 1024).toFixed(2);
+    const resultsMB = (resultsSize / 1024 / 1024).toFixed(2);
+    const totalDataMB = ((rawDataSize + resultsSize) / 1024 / 1024).toFixed(2);
+
+    btn.textContent = `Total: ${totalDataMB}MB | Raw: ${rawMB}MB (${rawDataChunks.length} chunks, ${slimData.length} rows) | Results: ${resultsMB}MB (${resultsChunks.length} chunks, ${saveResults.length} rows)`;
+    await new Promise(r => setTimeout(r, 2000)); // Show size info for 2 seconds
 
     // First request: POST metadata only (no raw_data, no results_data)
     const firstPayload = JSON.stringify({
@@ -3258,8 +3282,7 @@ document.getElementById('saveModalConfirm').addEventListener('click', async () =
       }
     }
 
-    const totalRows = (slimData.length + resultsChunks.reduce((s, c) => s + c.length, 0)).toLocaleString();
-    alert(`Report saved: ${data.name} (${totalRows} rows in ${totalChunks} chunks)`);
+    alert(`Report saved: ${data.name}\n\nTotal: ${totalDataMB}MB in ${totalChunks} chunks\nRaw data: ${rawMB}MB (${slimData.length.toLocaleString()} rows, ${rawDataChunks.length} chunks)\nResults: ${resultsMB}MB (${saveResults.length.toLocaleString()} rows, ${resultsChunks.length} chunks)`);
   } catch (err) {
     alert('Error saving report: ' + err.message);
   }
