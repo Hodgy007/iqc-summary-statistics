@@ -42,7 +42,12 @@ export default async function handler(req, res) {
     }
   } else if (req.method === 'PATCH') {
     try {
-      const rows = await sql`SELECT user_id FROM reports WHERE id = ${id}`;
+      let rows;
+      try {
+        rows = await sql`SELECT user_id FROM reports WHERE id = ${id}`;
+      } catch {
+        rows = await sql`SELECT id FROM reports WHERE id = ${id}`;
+      }
       if (rows.length === 0) return res.status(404).json({ error: 'Report not found' });
       if (rows[0].user_id && rows[0].user_id !== user.id && user.role !== 'admin') {
         return res.status(403).json({ error: 'You can only update your own reports' });
