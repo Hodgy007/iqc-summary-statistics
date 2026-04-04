@@ -3146,7 +3146,7 @@ document.getElementById('saveModalConfirm').addEventListener('click', async () =
       lv: r.level, dt: r.date, v: r.value, st: r.status, si: r.sampleId || ''
     }));
 
-    const CHUNK_SIZE = 3 * 1024 * 1024; // 3MB chunks to stay under Vercel 4.5MB limit
+    const CHUNK_SIZE = 1.5 * 1024 * 1024; // 1.5MB chunks to stay under Vercel 4.5MB limit with metadata
     const resultsChunks = [];
     let currentChunk = [];
     let currentSize = 0;
@@ -3182,8 +3182,8 @@ document.getElementById('saveModalConfirm').addEventListener('click', async () =
     });
 
     const sizeMB = (firstPayload.length / 1024 / 1024).toFixed(1);
-    if (firstPayload.length > 4.5 * 1024 * 1024) {
-      alert('Initial payload too large. Try saving with filters applied to reduce the dataset.');
+    if (firstPayload.length > 3.5 * 1024 * 1024) {
+      alert(`First payload too large (${sizeMB}MB). Try saving with filters applied to reduce the dataset.`);
       btn.disabled = false;
       btn.textContent = 'Save Report';
       return;
