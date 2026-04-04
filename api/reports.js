@@ -35,14 +35,14 @@ export default async function handler(req, res) {
 
       const rows = await sql`
         INSERT INTO reports (name, user_id, raw_data, results_data, exclusions, filters)
-        VALUES (${name}, ${user.id}, ${JSON.stringify(raw_data)}, ${JSON.stringify(results_data)}, ${JSON.stringify(exclusions || [])}, ${JSON.stringify(filters || {})})
+        VALUES (${name}, ${user.id}, ${JSON.stringify(raw_data || [])}::jsonb, ${JSON.stringify(results_data || [])}::jsonb, ${JSON.stringify(exclusions || [])}::jsonb, ${JSON.stringify(filters || {})}::jsonb)
         RETURNING id, name, created_at
       `;
       logActivity(user.id, 'report_save', `Saved report: ${name}`);
       res.status(201).json(rows[0]);
     } catch (err) {
-      console.error('Report save error:', err);
-      res.status(500).json({ error: 'Failed to save report' });
+      console.error('Report save error:', err.message || err);
+      res.status(500).json({ error: 'Failed to save report', detail: err.message });
     }
   } else {
     res.status(405).json({ error: 'Method not allowed' });

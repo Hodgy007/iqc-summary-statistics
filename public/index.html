@@ -2742,6 +2742,9 @@ document.getElementById('chartInstruments').addEventListener('change', renderLJC
 // =============================================
 let exclusions = []; // [{analyte, instrument}]
 let deletedPointIds = new Set(); // track deleted data point _ids
+let modalPoints = []; // current modal data points for sorting
+let modalMeta = {};   // param/level/inst/stat/mean/sd for sort re-render
+let modalSortCol = null, modalSortDir = 'asc';
 
 document.getElementById('exclusionToggle').addEventListener('click', () => {
   document.getElementById('exclusionBody').classList.toggle('open');
@@ -2888,39 +2891,30 @@ document.getElementById('resultsTable').addEventListener('click', e => {
 
   html += `</div></div>`;
 
+  // Store for sort re-render
+  modalPoints = points.slice();
+  modalSortCol = null; modalSortDir = 'asc';
+  modalMeta = { param, level, inst, stat, mean, sd, combined: inst === 'combined' };
+
   // Data points table
   html += `<div class="calc-section"><h4>All ${n} Data Points</h4>`;
   html += `<div style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:6px">`;
-  html += `<table class="data-points-table"><thead><tr>`;
-  html += `<th>#</th><th>Date</th><th>Value</th><th>Deviation</th>`;
+  html += `<table class="data-points-table" id="detail-points-table"><thead><tr>`;
+  const thStyle = 'cursor:pointer;user-select:none;white-space:nowrap';
+  html += `<th style="${thStyle}" onclick="sortDetailTable('index')" title="Original order"># <span id="sort-ind-index"></span></th>`;
+  html += `<th style="${thStyle}" onclick="sortDetailTable('date')" title="Sort by date">Date <span id="sort-ind-date"></span></th>`;
+  html += `<th style="${thStyle}" onclick="sortDetailTable('value')" title="Sort by value">Value <span id="sort-ind-value"></span></th>`;
+  html += `<th style="${thStyle}" onclick="sortDetailTable('deviation')" title="Sort by deviation">Deviation <span id="sort-ind-deviation"></span></th>`;
   if (inst === 'combined') html += `<th>Instrument</th>`;
   html += `<th>Protocol</th><th>Status</th><th>Sample ID</th><th></th>`;
-  html += `</tr></thead><tbody>`;
+  html += `</tr></thead><tbody id="detail-points-tbody"></tbody></table></div></div>`;
 
-  points.forEach((p, i) => {
-    const dev = p.value - mean;
-    const sdAway = sd > 0 ? Math.abs(dev / sd) : 0;
-    const highlight = sdAway > 2 ? ' class="highlight-row"' : '';
-    const pointId = p._id !== undefined ? p._id : i;
-    html += `<tr${highlight} id="point-row-${pointId}">`;
-    html += `<td>${i + 1}</td>`;
-    html += `<td>${escapeHtml(p.date)}</td>`;
-    html += `<td><b>${escapeHtml(String(p.value))}</b></td>`;
-    html += `<td>${dev >= 0 ? '+' : ''}${dev.toFixed(3)} (${sdAway.toFixed(1)} SD)</td>`;
-    if (inst === 'combined') html += `<td>${escapeHtml(p.instrument)}</td>`;
-    html += `<td>${escapeHtml(p.protocol)}</td>`;
-    html += `<td>${escapeHtml(p.status)}</td>`;
-    html += `<td>${escapeHtml(p.sampleId)}</td>`;
-    html += `<td><button class="btn btn-danger" style="padding:2px 8px;font-size:11px" onclick="deleteDataPoint(${pointId}, '${param}', '${level}', '${inst}', '${stat}')">Remove</button></td>`;
-    html += `</tr>`;
-  });
-
-  html += `</tbody></table></div></div>`;
   if (deletedPointIds.size > 0) {
     html += `<div style="margin-top:8px;font-size:12px;color:var(--text-dim)">${deletedPointIds.size} data point(s) removed this session. <a href="#" style="color:var(--accent)" onclick="restoreAllPoints();return false">Restore all</a></div>`;
   }
 
   modalBody.innerHTML = html;
+  renderDetailTbody();
   modalOverlay.classList.add('active');
 });
 
@@ -2947,6 +2941,67 @@ function restoreAllPoints() {
   deletedPointIds.clear();
   applyFilters();
   modalOverlay.classList.remove('active');
+}
+
+function renderDetailTbody() {
+  const tbody = document.getElementById('detail-points-tbody');
+  if (!tbody) return;
+  const { param, level, inst, stat, mean, sd, combined } = modalMeta;
+
+  let sorted = modalPoints.slice();
+  if (modalSortCol === 'value') {
+    sorted.sort((a, b) => modalSortDir === 'asc' ? a.value - b.value : b.value - a.value);
+  } else if (modalSortCol === 'deviation') {
+    sorted.sort((a, b) => {
+      const da = a.value - mean, db = b.value - mean;
+      return modalSortDir === 'asc' ? da - db : db - da;
+    });
+  } else if (modalSortCol === 'date') {
+    sorted.sort((a, b) => {
+      const cmp = (a.date || '').localeCompare(b.date || '');
+      return modalSortDir === 'asc' ? cmp : -cmp;
+    });
+  }
+  // else 'index' or null: use original order
+
+  // Update sort indicators
+  ['index','date','value','deviation'].forEach(col => {
+    const el = document.getElementById('sort-ind-' + col);
+    if (!el) return;
+    if (col === modalSortCol) el.textContent = modalSortDir === 'asc' ? ' ▲' : ' ▼';
+    else el.textContent = ' ⇅';
+  });
+
+  let rows = '';
+  sorted.forEach((p, i) => {
+    const dev = p.value - mean;
+    const sdAway = sd > 0 ? Math.abs(dev / sd) : 0;
+    const highlight = sdAway > 2 ? ' class="highlight-row"' : '';
+    const pointId = p._id !== undefined ? p._id : i;
+    rows += `<tr${highlight} id="point-row-${pointId}">`;
+    rows += `<td>${i + 1}</td>`;
+    rows += `<td>${escapeHtml(p.date)}</td>`;
+    rows += `<td><b>${escapeHtml(String(p.value))}</b></td>`;
+    rows += `<td>${dev >= 0 ? '+' : ''}${dev.toFixed(3)} (${sdAway.toFixed(1)} SD)</td>`;
+    if (combined) rows += `<td>${escapeHtml(p.instrument)}</td>`;
+    rows += `<td>${escapeHtml(p.protocol)}</td>`;
+    rows += `<td>${escapeHtml(p.status)}</td>`;
+    rows += `<td>${escapeHtml(p.sampleId)}</td>`;
+    rows += `<td><button class="btn btn-danger" style="padding:2px 8px;font-size:11px" onclick="deleteDataPoint(${pointId}, '${escapeHtml(param)}', '${escapeHtml(level)}', '${escapeHtml(inst)}', '${escapeHtml(stat)}')">Remove</button></td>`;
+    rows += `</tr>`;
+  });
+  tbody.innerHTML = rows;
+}
+
+function sortDetailTable(col) {
+  if (modalSortCol === col) {
+    if (modalSortDir === 'asc') modalSortDir = 'desc';
+    else { modalSortCol = null; modalSortDir = 'asc'; } // third click resets
+  } else {
+    modalSortCol = col;
+    modalSortDir = col === 'index' ? 'asc' : 'asc';
+  }
+  renderDetailTbody();
 }
 
 // Export & Reset
