@@ -33,11 +33,21 @@ export default async function handler(req, res) {
       const { name, raw_data, results_data, exclusions, filters } = req.body;
       if (!name) return res.status(400).json({ error: 'Name is required' });
 
-      const rows = await sql`
-        INSERT INTO reports (name, user_id, raw_data, results_data, exclusions, filters)
-        VALUES (${name}, ${user.id}, ${JSON.stringify(raw_data || [])}::jsonb, ${JSON.stringify(results_data || [])}::jsonb, ${JSON.stringify(exclusions || [])}::jsonb, ${JSON.stringify(filters || {})}::jsonb)
-        RETURNING id, name, created_at
-      `;
+      let rows;
+      try {
+        rows = await sql`
+          INSERT INTO reports (name, user_id, raw_data, results_data, exclusions, filters)
+          VALUES (${name}, ${user.id}, ${JSON.stringify(raw_data || [])}::jsonb, ${JSON.stringify(results_data || [])}::jsonb, ${JSON.stringify(exclusions || [])}::jsonb, ${JSON.stringify(filters || {})}::jsonb)
+          RETURNING id, name, created_at
+        `;
+      } catch (insertErr) {
+        // Fallback if user_id column doesn't exist yet
+        rows = await sql`
+          INSERT INTO reports (name, raw_data, results_data, exclusions, filters)
+          VALUES (${name}, ${JSON.stringify(raw_data || [])}::jsonb, ${JSON.stringify(results_data || [])}::jsonb, ${JSON.stringify(exclusions || [])}::jsonb, ${JSON.stringify(filters || {})}::jsonb)
+          RETURNING id, name, created_at
+        `;
+      }
       logActivity(user.id, 'report_save', `Saved report: ${name}`);
       res.status(201).json(rows[0]);
     } catch (err) {
