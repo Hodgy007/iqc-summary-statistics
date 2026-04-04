@@ -55,10 +55,10 @@ export default async function handler(req, res) {
 
       let updateQuery;
       if (raw_data_chunk) {
-        // Replace raw_data entirely
+        // Append raw_data chunks
         updateQuery = sql`
           UPDATE reports
-          SET raw_data = ${JSON.stringify(raw_data_chunk)}::jsonb
+          SET raw_data = COALESCE(raw_data, '[]'::jsonb) || ${JSON.stringify(raw_data_chunk)}::jsonb
           WHERE id = ${id}
           RETURNING id, name, created_at
         `;
