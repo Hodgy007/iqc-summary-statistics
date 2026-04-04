@@ -3161,6 +3161,8 @@ document.getElementById('btnSaveReport').addEventListener('click', () => {
   updateSaveSizeInfo();
   saveModalOverlay.classList.add('active');
   setTimeout(() => document.getElementById('saveReportName').focus(), 50);
+  // Pre-warm the serverless function so it's ready when user clicks Save
+  fetch('/api/reports', { method: 'HEAD' }).catch(() => {});
 });
 document.querySelectorAll('input[name="saveScope"]').forEach(r => r.addEventListener('change', updateSaveSizeInfo));
 document.getElementById('saveModalClose').addEventListener('click', () => saveModalOverlay.classList.remove('active'));
