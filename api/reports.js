@@ -30,9 +30,48 @@ export default async function handler(req, res) {
     }
   } else if (req.method === 'POST') {
     try {
-      const { name, raw_data, results_data, exclusions, filters } = req.body;
+      const { name, raw_data, results_data, raw_data_gz, results_data_gz, exclusions, filters } = req.body;
       if (!name) return res.status(400).json({ error: 'Name is required' });
 
+      // If compressed data is provided, store in report_chunks table
+      if (raw_data_gz || results_data_gz) {
+        let rows;
+        try {
+          rows = await sql`
+            INSERT INTO reports (name, user_id, raw_data, results_data, exclusions, filters)
+            VALUES (${name}, ${user.id}, '[]'::jsonb, '[]'::jsonb, ${JSON.stringify(exclusions || [])}::jsonb, ${JSON.stringify(filters || {})}::jsonb)
+            RETURNING id, name, created_at
+          `;
+        } catch (insertErr) {
+          rows = await sql`
+            INSERT INTO reports (name, raw_data, results_data, exclusions, filters)
+            VALUES (${name}, '[]'::jsonb, '[]'::jsonb, ${JSON.stringify(exclusions || [])}::jsonb, ${JSON.stringify(filters || {})}::jsonb)
+            RETURNING id, name, created_at
+          `;
+        }
+        const reportId = rows[0].id;
+
+        // Store compressed data as TEXT chunks (fast INSERT, no JSONB parsing)
+        const chunkInserts = [];
+        if (raw_data_gz) {
+          chunkInserts.push(sql`
+            INSERT INTO report_chunks (report_id, chunk_type, chunk_index, data)
+            VALUES (${reportId}, 'raw_data', 0, ${raw_data_gz})
+          `);
+        }
+        if (results_data_gz) {
+          chunkInserts.push(sql`
+            INSERT INTO report_chunks (report_id, chunk_type, chunk_index, data)
+            VALUES (${reportId}, 'results_data', 0, ${results_data_gz})
+          `);
+        }
+        await Promise.all(chunkInserts);
+
+        logActivity(user.id, 'report_save', `Saved report: ${name}`);
+        return res.status(201).json(rows[0]);
+      }
+
+      // Legacy uncompressed format
       let rows;
       try {
         rows = await sql`
@@ -41,7 +80,6 @@ export default async function handler(req, res) {
           RETURNING id, name, created_at
         `;
       } catch (insertErr) {
-        // Fallback if user_id column doesn't exist yet
         rows = await sql`
           INSERT INTO reports (name, raw_data, results_data, exclusions, filters)
           VALUES (${name}, ${JSON.stringify(raw_data || [])}::jsonb, ${JSON.stringify(results_data || [])}::jsonb, ${JSON.stringify(exclusions || [])}::jsonb, ${JSON.stringify(filters || {})}::jsonb)

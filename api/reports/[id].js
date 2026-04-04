@@ -19,37 +19,15 @@ export default async function handler(req, res) {
       // Assemble chunked data if available
       try {
         const chunks = await sql`
-          SELECT chunk_type, data FROM report_chunks
+          SELECT chunk_type, chunk_index, data FROM report_chunks
           WHERE report_id = ${id}
           ORDER BY chunk_type, chunk_index
         `;
         if (chunks.length > 0) {
-          // Check if data is base64 gzip (starts with H4sI) or raw JSON (starts with [)
-          function parseChunkData(data) {
-            if (typeof data === 'string' && data.startsWith('H4sI')) {
-              // Compressed base64 gzip - return as-is for client-side decompression
-              return { compressed: data };
-            }
-            // Raw JSON string or already-parsed object
-            return typeof data === 'string' ? JSON.parse(data) : data;
-          }
-
-          const rawChunkData = chunks.filter(c => c.chunk_type === 'raw_data');
-          const resChunkData = chunks.filter(c => c.chunk_type === 'results_data');
-
-          // Check if any chunks are compressed
-          const hasCompressed = chunks.some(c => typeof c.data === 'string' && c.data.startsWith('H4sI'));
-          if (hasCompressed) {
-            // Return chunks for client-side decompression
-            report._chunks = chunks.map(c => ({ type: c.chunk_type, index: c.chunk_index, data: c.data }));
-            report.raw_data = report.raw_data || [];
-            report.results_data = report.results_data || [];
-          } else {
-            const rawItems = rawChunkData.flatMap(c => JSON.parse(c.data));
-            const resItems = resChunkData.flatMap(c => JSON.parse(c.data));
-            if (rawItems.length > 0) report.raw_data = rawItems;
-            if (resItems.length > 0) report.results_data = resItems;
-          }
+          // Send compressed chunks to client for decompression
+          report._chunks = chunks.map(c => ({ type: c.chunk_type, index: c.chunk_index, data: c.data }));
+          report.raw_data = report.raw_data || [];
+          report.results_data = report.results_data || [];
         }
       } catch {
         // report_chunks table may not exist yet - use inline data

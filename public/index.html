@@ -1182,6 +1182,18 @@
 
 <script>
 // =============================================
+// BINARY UTILITIES
+// =============================================
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 8192) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+  }
+  return btoa(binary);
+}
+
+// =============================================
 // SECURITY UTILITIES
 // =============================================
 function escapeHtml(str) {
@@ -3137,13 +3149,10 @@ function updateSaveSizeInfo() {
   const rawMB = (rawSize / 1024 / 1024).toFixed(2);
   const resMB = (resSize / 1024 / 1024).toFixed(2);
   const totalMB = (totalSize / 1024 / 1024).toFixed(2);
-  const rawChunks = Math.ceil(rawSize / (3.5 * 1024 * 1024));
-  const resChunks = Math.ceil(resSize / (3.5 * 1024 * 1024));
-
-  info.innerHTML = `<strong>Estimated size (before compression):</strong> ${totalMB} MB total<br>` +
-    `Raw data: ${rawMB} MB &middot; ${dataRows.length.toLocaleString()} rows &middot; ${rawChunks} chunk${rawChunks !== 1 ? 's' : ''}<br>` +
-    `Results: ${resMB} MB &middot; ${resultRows.length.toLocaleString()} rows &middot; ${resChunks} chunk${resChunks !== 1 ? 's' : ''}<br>` +
-    `<em>Data is gzip compressed before upload (~5-10x smaller)</em>`;
+  info.innerHTML = `<strong>Data size (before gzip):</strong> ${totalMB} MB<br>` +
+    `Raw data: ${rawMB} MB &middot; ${dataRows.length.toLocaleString()} rows<br>` +
+    `Results: ${resMB} MB &middot; ${resultRows.length.toLocaleString()} rows<br>` +
+    `<em>Compressed to ~${(totalSize / 8 / 1024 / 1024).toFixed(2)} MB for upload</em>`;
 }
 
 document.getElementById('btnSaveReport').addEventListener('click', () => {
@@ -3201,62 +3210,37 @@ document.getElementById('saveModalConfirm').addEventListener('click', async () =
 
   try {
     // Compress raw data with short keys to reduce payload size
-    // pr=protocol, in=instrument, pa=parameter, lv=level, dt=date, v=value, st=status, si=sampleId
     const slimData = saveData.map(r => ({
       pr: r.protocol, in: r.instrument, pa: r.parameter,
       lv: r.level, dt: r.date, v: r.value, st: r.status, si: r.sampleId || ''
     }));
 
-    const CHUNK_SIZE = 3.5 * 1024 * 1024; // 3.5MB pre-compression chunks
+    const rawJSON = JSON.stringify(slimData);
+    const resultsJSON = JSON.stringify(saveResults);
+    const totalMB = ((rawJSON.length + resultsJSON.length) / 1024 / 1024).toFixed(2);
 
-    // Split raw_data into chunks
-    const rawDataChunks = [];
-    let rawChunk = [];
-    let rawSize = 0;
-    for (const item of slimData) {
-      const itemStr = JSON.stringify(item);
-      const itemSize = itemStr.length;
-      if (rawSize + itemSize > CHUNK_SIZE && rawChunk.length > 0) {
-        rawDataChunks.push([...rawChunk]);
-        rawChunk = [item];
-        rawSize = itemSize;
-      } else {
-        rawChunk.push(item);
-        rawSize += itemSize;
-      }
+    btn.textContent = `Compressing ${totalMB}MB...`;
+
+    // Gzip compress using browser CompressionStream
+    async function gzipCompress(str) {
+      const blob = new Blob([str]);
+      const stream = blob.stream().pipeThrough(new CompressionStream('gzip'));
+      return await new Response(stream).arrayBuffer();
     }
-    if (rawChunk.length > 0) rawDataChunks.push(rawChunk);
 
-    // Split results_data into chunks
-    const resultsChunks = [];
-    let currentChunk = [];
-    let currentSize = 0;
-    for (const item of saveResults) {
-      const itemStr = JSON.stringify(item);
-      const itemSize = itemStr.length;
-      if (currentSize + itemSize > CHUNK_SIZE && currentChunk.length > 0) {
-        resultsChunks.push([...currentChunk]);
-        currentChunk = [item];
-        currentSize = itemSize;
-      } else {
-        currentChunk.push(item);
-        currentSize += itemSize;
-      }
-    }
-    if (currentChunk.length > 0) resultsChunks.push(currentChunk);
+    const [rawGzip, resultsGzip] = await Promise.all([
+      gzipCompress(rawJSON),
+      gzipCompress(resultsJSON)
+    ]);
 
-    // Calculate per-section sizes
-    const rawDataSize = JSON.stringify(slimData).length;
-    const resultsSize = JSON.stringify(saveResults).length;
-    const rawMB = (rawDataSize / 1024 / 1024).toFixed(2);
-    const resultsMB = (resultsSize / 1024 / 1024).toFixed(2);
-    const totalDataMB = ((rawDataSize + resultsSize) / 1024 / 1024).toFixed(2);
+    const compressedMB = ((rawGzip.byteLength + resultsGzip.byteLength) / 1024 / 1024).toFixed(2);
+    btn.textContent = `Uploading ${compressedMB}MB (compressed from ${totalMB}MB)...`;
 
-    // First request: POST metadata only (no raw_data, no results_data)
-    const firstPayload = JSON.stringify({
+    // Build multipart-style payload with binary data
+    const payload = {
       name,
-      raw_data: [],
-      results_data: [],
+      raw_data_gz: arrayBufferToBase64(rawGzip),
+      results_data_gz: arrayBufferToBase64(resultsGzip),
       exclusions: scope === 'filtered' ? exclusions : [],
       filters: {
         protocol: scope === 'filtered' ? document.getElementById('filterProtocol').value : 'all',
@@ -3265,70 +3249,32 @@ document.getElementById('saveModalConfirm').addEventListener('click', async () =
         dateRangeMin: saveRangeMin,
         dateRangeMax: saveRangeMax,
       }
-    });
+    };
 
-    btn.textContent = 'Saving...';
-    const resp = await fetch('/api/reports', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: firstPayload
-    });
-    const data = await resp.json();
-    if (!resp.ok) {
-      alert('Error creating report: ' + (data.error || data.detail || 'Unknown error'));
+    const bodyStr = JSON.stringify(payload);
+    const bodyMB = (bodyStr.length / 1024 / 1024).toFixed(2);
+
+    if (bodyStr.length > 4.2 * 1024 * 1024) {
+      alert(`Compressed payload still too large (${bodyMB}MB). Try applying filters to reduce the dataset.`);
       btn.disabled = false;
       btn.textContent = 'Save Report';
       return;
     }
 
-    const reportId = data.id;
-    let chunksSent = 0;
-    const totalChunks = rawDataChunks.length + resultsChunks.length;
-    btn.textContent = `Saving ${totalDataMB}MB (0/${totalChunks})...`;
-
-    // Compress JSON string to base64 gzip using browser CompressionStream
-    async function compressToBase64(data) {
-      const json = JSON.stringify(data);
-      const blob = new Blob([json]);
-      const stream = blob.stream().pipeThrough(new CompressionStream('gzip'));
-      const compressed = await new Response(stream).arrayBuffer();
-      const bytes = new Uint8Array(compressed);
-      let binary = '';
-      for (let i = 0; i < bytes.length; i += 8192) {
-        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
-      }
-      return btoa(binary);
+    const resp = await fetch('/api/reports', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: bodyStr
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      alert('Error saving: ' + (data.error || data.detail || 'Unknown error'));
+      btn.disabled = false;
+      btn.textContent = 'Save Report';
+      return;
     }
 
-    // Build all chunks with type info
-    const allChunks = [
-      ...rawDataChunks.map((c, i) => ({ type: 'raw_data', data: c, index: i })),
-      ...resultsChunks.map((c, i) => ({ type: 'results_data', data: c, index: i }))
-    ];
-
-    // Compress and send chunks in parallel batches of 3
-    const BATCH_SIZE = 3;
-    for (let b = 0; b < allChunks.length; b += BATCH_SIZE) {
-      const batch = allChunks.slice(b, b + BATCH_SIZE);
-      const promises = batch.map(async (chunk) => {
-        const compressed = await compressToBase64(chunk.data);
-        const body = { chunk_type: chunk.type, chunk_index: chunk.index, compressed: compressed };
-        const resp = await fetch(`/api/reports/${reportId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
-        });
-        if (!resp.ok) {
-          const err = await resp.json();
-          throw new Error(err.error || 'Chunk upload failed');
-        }
-      });
-      await Promise.all(promises);
-      chunksSent += batch.length;
-      btn.textContent = `Saving ${totalDataMB}MB (${chunksSent}/${totalChunks})...`;
-    }
-
-    alert(`Report saved: ${data.name}\n\nTotal: ${totalDataMB}MB in ${totalChunks} chunks\nRaw data: ${rawMB}MB (${slimData.length.toLocaleString()} rows, ${rawDataChunks.length} chunks)\nResults: ${resultsMB}MB (${saveResults.length.toLocaleString()} rows, ${resultsChunks.length} chunks)`);
+    alert(`Report saved: ${data.name}\n${totalMB}MB compressed to ${compressedMB}MB\n${slimData.length.toLocaleString()} raw rows, ${saveResults.length.toLocaleString()} results`);
   } catch (err) {
     alert('Error saving report: ' + err.message);
   }
