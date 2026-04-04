@@ -3165,7 +3165,8 @@ document.getElementById('btnSaveReport').addEventListener('click', () => {
   fetch('/api/reports').catch(() => {});
 });
 
-// Keep serverless functions warm every 5 minutes while page is open
+// Warm up serverless function on page load and keep warm every 5 minutes
+fetch('/api/reports').catch(() => {});
 setInterval(() => fetch('/api/reports').catch(() => {}), 5 * 60 * 1000);
 document.querySelectorAll('input[name="saveScope"]').forEach(r => r.addEventListener('change', updateSaveSizeInfo));
 document.getElementById('saveModalClose').addEventListener('click', () => saveModalOverlay.classList.remove('active'));
