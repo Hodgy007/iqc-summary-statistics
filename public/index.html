@@ -3261,20 +3261,24 @@ document.getElementById('saveModalConfirm').addEventListener('click', async () =
       return;
     }
 
+    const t0 = Date.now();
+    btn.textContent = `Uploading ${bodyMB}MB...`;
+
     const resp = await fetch('/api/reports', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: bodyStr
     });
+    const t1 = Date.now();
     const data = await resp.json();
     if (!resp.ok) {
-      alert('Error saving: ' + (data.error || data.detail || 'Unknown error'));
+      alert(`Error saving (took ${((t1-t0)/1000).toFixed(1)}s): ` + (data.error || data.detail || 'Unknown error'));
       btn.disabled = false;
       btn.textContent = 'Save Report';
       return;
     }
 
-    alert(`Report saved: ${data.name}\n${totalMB}MB compressed to ${compressedMB}MB\n${slimData.length.toLocaleString()} raw rows, ${saveResults.length.toLocaleString()} results`);
+    alert(`Report saved: ${data.name}\nUpload: ${bodyMB}MB in ${((t1-t0)/1000).toFixed(1)}s\n${slimData.length.toLocaleString()} raw rows, ${saveResults.length.toLocaleString()} results`);
   } catch (err) {
     alert('Error saving report: ' + err.message);
   }
