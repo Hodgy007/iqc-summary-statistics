@@ -1871,8 +1871,8 @@ function renderStats() {
       }
       return acc;
     }, { minT: 0, maxT: 0, min: '', max: '' });
-    minDate = dateRange.min ? parseDate(dateRange.min).toLocaleDateString('en-GB') : 'N/A';
-    maxDate = dateRange.max ? parseDate(dateRange.max).toLocaleDateString('en-GB') : 'N/A';
+    minDate = dateRange.min ? formatDate(dateRange.min) : 'N/A';
+    maxDate = dateRange.max ? formatDate(dateRange.max) : 'N/A';
   } else {
     // Try to get from saved filter dropdowns
     const fromEl = document.getElementById('filterDateFrom');
@@ -1979,7 +1979,7 @@ function renderRawData() {
       <td>${escapeHtml(r.instrument)}</td>
       <td>${escapeHtml(r.parameter)}</td>
       <td>${escapeHtml(r.level)}</td>
-      <td>${escapeHtml(r.date)}</td>
+      <td>${formatDate(r.date)}</td>
       <td><b>${escapeHtml(r.value)}</b></td>
       <td>${escapeHtml(r.target)}</td>
       <td>${escapeHtml(r.sd)}</td>
@@ -2221,6 +2221,19 @@ function parseDate(dateStr) {
   return new Date(dateStr);
 }
 
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const [datePart, timePart] = dateStr.trim().split(' ');
+  const dp = datePart.split('/');
+  if (dp.length === 3) {
+    const dd = dp[0].padStart(2, '0');
+    const mm = dp[1].padStart(2, '0');
+    const yy = String(dp[2]).slice(-2);
+    return timePart ? `${dd}/${mm}/${yy} ${timePart}` : `${dd}/${mm}/${yy}`;
+  }
+  return dateStr;
+}
+
 // =============================================
 // EXPORT
 // =============================================
@@ -2248,9 +2261,9 @@ function exportPDF() {
   const protocolCount = new Set(processedData.map(r => r.protocol)).size;
   const parameterCount = new Set(processedData.map(r => r.parameter)).size;
   const rejectedCount = rawData.filter(r => r.status === 'Manually rejected').length;
-  const dates = processedData.map(r => parseDate(r.date)).filter(d => d.getTime() > 0);
-  const minDate = dates.length ? new Date(Math.min(...dates)).toLocaleDateString('en-GB') : 'N/A';
-  const maxDate = dates.length ? new Date(Math.max(...dates)).toLocaleDateString('en-GB') : 'N/A';
+  const datedRows = processedData.map(r => ({ str: r.date, t: parseDate(r.date).getTime() })).filter(d => d.t > 0);
+  const minDate = datedRows.length ? formatDate(datedRows.reduce((m, d) => d.t < m.t ? d : m).str) : 'N/A';
+  const maxDate = datedRows.length ? formatDate(datedRows.reduce((m, d) => d.t > m.t ? d : m).str) : 'N/A';
 
   // Summary boxes
   doc.setTextColor(0, 0, 0);
@@ -2968,7 +2981,7 @@ function renderDetailTbody() {
     });
   } else if (modalSortCol === 'date') {
     sorted.sort((a, b) => {
-      const cmp = (a.date || '').localeCompare(b.date || '');
+      const cmp = parseDate(a.date).getTime() - parseDate(b.date).getTime();
       return modalSortDir === 'asc' ? cmp : -cmp;
     });
   }
@@ -2990,7 +3003,7 @@ function renderDetailTbody() {
     const pointId = p._id !== undefined ? p._id : i;
     rows += `<tr${highlight} id="point-row-${pointId}">`;
     rows += `<td>${i + 1}</td>`;
-    rows += `<td>${escapeHtml(p.date)}</td>`;
+    rows += `<td>${formatDate(p.date)}</td>`;
     rows += `<td><b>${escapeHtml(String(p.value))}</b></td>`;
     rows += `<td>${dev >= 0 ? '+' : ''}${dev.toFixed(3)} (${sdAway.toFixed(1)} SD)</td>`;
     if (combined) rows += `<td>${escapeHtml(p.instrument)}</td>`;
