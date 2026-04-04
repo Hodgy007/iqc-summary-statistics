@@ -3139,40 +3139,45 @@ document.getElementById('saveModalConfirm').addEventListener('click', async () =
   btn.textContent = 'Saving...';
 
   try {
-    // Slim down raw data to only fields needed for reload
+    // Compress raw data with short keys to reduce payload size
+    // pr=protocol, in=instrument, pa=parameter, lv=level, dt=date, v=value, st=status, si=sampleId
     const slimData = saveData.map(r => ({
-      protocol: r.protocol,
-      instrument: r.instrument,
-      parameter: r.parameter,
-      level: r.level,
-      date: r.date,
-      value: r.value,
-      status: r.status,
-      sampleId: r.sampleId || ''
+      pr: r.protocol, in: r.instrument, pa: r.parameter,
+      lv: r.level, dt: r.date, v: r.value, st: r.status, si: r.sampleId || ''
     }));
+
+    const payload = JSON.stringify({
+      name,
+      raw_data: slimData,
+      results_data: saveResults,
+      exclusions: scope === 'filtered' ? exclusions : [],
+      filters: {
+        protocol: scope === 'filtered' ? document.getElementById('filterProtocol').value : 'all',
+        dateFrom: scope === 'filtered' ? document.getElementById('filterDateFrom').value : '',
+        dateTo: scope === 'filtered' ? document.getElementById('filterDateTo').value : '',
+        dateRangeMin: saveRangeMin,
+        dateRangeMax: saveRangeMax,
+      }
+    });
+
+    const sizeMB = (payload.length / 1024 / 1024).toFixed(1);
+    if (payload.length > 4 * 1024 * 1024) {
+      alert(`Report data is too large to save (${sizeMB} MB). Try saving with filters applied to reduce the dataset.`);
+      btn.disabled = false;
+      btn.textContent = 'Save Report';
+      return;
+    }
 
     const resp = await fetch('/api/reports', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name,
-        raw_data: slimData,
-        results_data: saveResults,
-        exclusions: scope === 'filtered' ? exclusions : [],
-        filters: {
-          protocol: scope === 'filtered' ? document.getElementById('filterProtocol').value : 'all',
-          dateFrom: scope === 'filtered' ? document.getElementById('filterDateFrom').value : '',
-          dateTo: scope === 'filtered' ? document.getElementById('filterDateTo').value : '',
-          dateRangeMin: saveRangeMin,
-          dateRangeMax: saveRangeMax,
-        }
-      })
+      body: payload
     });
     const data = await resp.json();
     if (resp.ok) {
-      alert('Report saved: ' + data.name);
+      alert(`Report saved: ${data.name} (${sizeMB} MB)`);
     } else {
-      alert('Error saving: ' + (data.error || 'Unknown error'));
+      alert('Error saving: ' + (data.error || data.detail || 'Unknown error'));
     }
   } catch (err) {
     alert('Error saving report: ' + err.message);
@@ -3234,9 +3239,14 @@ async function loadReport(id) {
       return;
     }
 
-    // Restore state
+    // Restore state — expand compressed short keys if present
+    const rawLoaded = report.raw_data || [];
+    processedData = rawLoaded.map(r => r.pa !== undefined ? {
+      protocol: r.pr, instrument: r.in, parameter: r.pa,
+      level: r.lv, date: r.dt, value: r.v, status: r.st, sampleId: r.si || '',
+      target: 0, sd: 0, message: '', comment: '', user: ''
+    } : r);
     resultsData = report.results_data || [];
-    processedData = report.raw_data || [];
     rawData = processedData;
     exclusions = report.exclusions || [];
     const savedFilters = report.filters || {};
