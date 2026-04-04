@@ -3139,12 +3139,24 @@ document.getElementById('saveModalConfirm').addEventListener('click', async () =
   btn.textContent = 'Saving...';
 
   try {
+    // Slim down raw data to only fields needed for reload
+    const slimData = saveData.map(r => ({
+      protocol: r.protocol,
+      instrument: r.instrument,
+      parameter: r.parameter,
+      level: r.level,
+      date: r.date,
+      value: r.value,
+      status: r.status,
+      sampleId: r.sampleId || ''
+    }));
+
     const resp = await fetch('/api/reports', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name,
-        raw_data: saveData,
+        raw_data: slimData,
         results_data: saveResults,
         exclusions: scope === 'filtered' ? exclusions : [],
         filters: {
