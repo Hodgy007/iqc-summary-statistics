@@ -1151,6 +1151,7 @@
           <div style="color:var(--text-dim);font-size:12px;margin-top:2px">Saves the full dataset across all uploaded files, ignoring current filters</div>
         </div>
       </label>
+      <div id="saveSizeInfo" style="margin-top:12px;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--text-dim);line-height:1.6"></div>
       <div style="display:flex;gap:10px;margin-top:20px">
         <button class="btn" id="saveModalCancel" style="flex:1">Cancel</button>
         <button class="btn btn-primary" id="saveModalConfirm" style="flex:2">Save Report</button>
@@ -3105,12 +3106,53 @@ loadModalOverlay.addEventListener('click', e => { if (e.target === loadModalOver
 
 // Save Report — dialog
 const saveModalOverlay = document.getElementById('saveModalOverlay');
+function updateSaveSizeInfo() {
+  const scope = document.querySelector('input[name="saveScope"]:checked').value;
+  const info = document.getElementById('saveSizeInfo');
+
+  let dataRows, resultRows;
+  if (scope === 'all') {
+    dataRows = processData(rawData);
+    resultRows = buildResults(dataRows);
+  } else {
+    const search = document.getElementById('filterSearch').value.toLowerCase();
+    const cvFilter = document.getElementById('filterCV').value;
+    const analyteFilter = document.getElementById('filterAnalyte').value;
+    resultRows = resultsData.slice();
+    if (analyteFilter !== 'all') resultRows = resultRows.filter(r => r.parameter === analyteFilter);
+    if (search) resultRows = resultRows.filter(r => r.parameter.toLowerCase().includes(search));
+    if (cvFilter === 'high') resultRows = resultRows.filter(r => r.combined.cv > 10);
+    if (cvFilter === 'warn') resultRows = resultRows.filter(r => r.combined.cv > 5);
+    const visibleKeys = new Set(resultRows.map(r => r.parameter + '|' + r.level));
+    dataRows = processedData.filter(r => visibleKeys.has(r.parameter + '|' + r.level));
+  }
+
+  const slimPreview = dataRows.map(r => ({
+    pr: r.protocol, in: r.instrument, pa: r.parameter,
+    lv: r.level, dt: r.date, v: r.value, st: r.status, si: r.sampleId || ''
+  }));
+  const rawSize = JSON.stringify(slimPreview).length;
+  const resSize = JSON.stringify(resultRows).length;
+  const totalSize = rawSize + resSize;
+  const rawMB = (rawSize / 1024 / 1024).toFixed(2);
+  const resMB = (resSize / 1024 / 1024).toFixed(2);
+  const totalMB = (totalSize / 1024 / 1024).toFixed(2);
+  const rawChunks = Math.ceil(rawSize / (500 * 1024));
+  const resChunks = Math.ceil(resSize / (500 * 1024));
+
+  info.innerHTML = `<strong>Estimated save size:</strong> ${totalMB} MB total<br>` +
+    `Raw data: ${rawMB} MB &middot; ${dataRows.length.toLocaleString()} rows &middot; ${rawChunks} chunk${rawChunks !== 1 ? 's' : ''}<br>` +
+    `Results: ${resMB} MB &middot; ${resultRows.length.toLocaleString()} rows &middot; ${resChunks} chunk${resChunks !== 1 ? 's' : ''}`;
+}
+
 document.getElementById('btnSaveReport').addEventListener('click', () => {
   document.getElementById('saveReportName').value = '';
   document.querySelector('input[name="saveScope"][value="filtered"]').checked = true;
+  updateSaveSizeInfo();
   saveModalOverlay.classList.add('active');
   setTimeout(() => document.getElementById('saveReportName').focus(), 50);
 });
+document.querySelectorAll('input[name="saveScope"]').forEach(r => r.addEventListener('change', updateSaveSizeInfo));
 document.getElementById('saveModalClose').addEventListener('click', () => saveModalOverlay.classList.remove('active'));
 document.getElementById('saveModalCancel').addEventListener('click', () => saveModalOverlay.classList.remove('active'));
 saveModalOverlay.addEventListener('click', e => { if (e.target === saveModalOverlay) saveModalOverlay.classList.remove('active'); });
@@ -3208,9 +3250,6 @@ document.getElementById('saveModalConfirm').addEventListener('click', async () =
     const rawMB = (rawDataSize / 1024 / 1024).toFixed(2);
     const resultsMB = (resultsSize / 1024 / 1024).toFixed(2);
     const totalDataMB = ((rawDataSize + resultsSize) / 1024 / 1024).toFixed(2);
-
-    btn.textContent = `Total: ${totalDataMB}MB | Raw: ${rawMB}MB (${rawDataChunks.length} chunks, ${slimData.length} rows) | Results: ${resultsMB}MB (${resultsChunks.length} chunks, ${saveResults.length} rows)`;
-    await new Promise(r => setTimeout(r, 2000)); // Show size info for 2 seconds
 
     // First request: POST metadata only (no raw_data, no results_data)
     const firstPayload = JSON.stringify({
