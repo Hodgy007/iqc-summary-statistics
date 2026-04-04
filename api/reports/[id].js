@@ -24,8 +24,8 @@ export default async function handler(req, res) {
           ORDER BY chunk_type, chunk_index
         `;
         if (chunks.length > 0) {
-          const rawChunks = chunks.filter(c => c.chunk_type === 'raw_data').flatMap(c => c.data);
-          const resChunks = chunks.filter(c => c.chunk_type === 'results_data').flatMap(c => c.data);
+          const rawChunks = chunks.filter(c => c.chunk_type === 'raw_data').flatMap(c => JSON.parse(c.data));
+          const resChunks = chunks.filter(c => c.chunk_type === 'results_data').flatMap(c => JSON.parse(c.data));
           if (rawChunks.length > 0) report.raw_data = rawChunks;
           if (resChunks.length > 0) report.results_data = resChunks;
         }
@@ -83,7 +83,7 @@ export default async function handler(req, res) {
 
       await sql`
         INSERT INTO report_chunks (report_id, chunk_type, chunk_index, data)
-        VALUES (${id}, ${chunkType}, ${idx}, ${JSON.stringify(chunkData)}::jsonb)
+        VALUES (${id}, ${chunkType}, ${idx}, ${JSON.stringify(chunkData)})
       `;
 
       res.status(200).json({ id, chunk_type: chunkType, chunk_index: idx });

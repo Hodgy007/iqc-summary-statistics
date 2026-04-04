@@ -46,8 +46,15 @@ export default async function handler(req, res) {
         report_id INTEGER NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
         chunk_type TEXT NOT NULL,
         chunk_index INTEGER NOT NULL DEFAULT 0,
-        data JSONB NOT NULL
+        data TEXT NOT NULL
       )
+    `;
+    // Migrate data column from JSONB to TEXT if needed
+    await sql`
+      DO $$ BEGIN
+        ALTER TABLE report_chunks ALTER COLUMN data TYPE TEXT;
+      EXCEPTION WHEN others THEN NULL;
+      END $$
     `;
     await sql`CREATE INDEX IF NOT EXISTS idx_report_chunks_report_id ON report_chunks(report_id, chunk_type, chunk_index)`;
     // Add user_id column if it doesn't exist (for existing installations)
