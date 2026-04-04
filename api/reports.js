@@ -33,20 +33,23 @@ export default async function handler(req, res) {
       const { name, raw_data, results_data, raw_data_gz, results_data_gz, exclusions, filters } = req.body;
       if (!name) return res.status(400).json({ error: 'Name is required' });
 
-      // Compressed format - single TEXT column
+      // Compressed format - everything in one TEXT column, no JSONB
       if (raw_data_gz || results_data_gz) {
-        const compressedBundle = JSON.stringify({ r: raw_data_gz || '', d: results_data_gz || '' });
+        const bundle = JSON.stringify({
+          r: raw_data_gz || '', d: results_data_gz || '',
+          e: exclusions || [], f: filters || {}
+        });
         let rows;
         try {
           rows = await sql`
-            INSERT INTO reports (name, user_id, raw_data, results_data, exclusions, filters, compressed_data)
-            VALUES (${name}, ${user.id}, '[]'::jsonb, '[]'::jsonb, ${JSON.stringify(exclusions || [])}::jsonb, ${JSON.stringify(filters || {})}::jsonb, ${compressedBundle})
+            INSERT INTO reports (name, user_id, compressed_data)
+            VALUES (${name}, ${user.id}, ${bundle})
             RETURNING id, name, created_at
           `;
         } catch (insertErr) {
           rows = await sql`
-            INSERT INTO reports (name, raw_data, results_data, exclusions, filters, compressed_data)
-            VALUES (${name}, '[]'::jsonb, '[]'::jsonb, ${JSON.stringify(exclusions || [])}::jsonb, ${JSON.stringify(filters || {})}::jsonb, ${compressedBundle})
+            INSERT INTO reports (name, compressed_data)
+            VALUES (${name}, ${bundle})
             RETURNING id, name, created_at
           `;
         }

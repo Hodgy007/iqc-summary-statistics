@@ -18,7 +18,11 @@ export default async function handler(req, res) {
 
       // Check for compressed data first, then chunks table
       if (report.compressed_data) {
-        report._compressed = JSON.parse(report.compressed_data);
+        const parsed = JSON.parse(report.compressed_data);
+        report._compressed = parsed;
+        // Restore exclusions/filters from bundle if stored there
+        if (parsed.e) report.exclusions = parsed.e;
+        if (parsed.f) report.filters = parsed.f;
         delete report.compressed_data;
       } else try {
         const chunks = await sql`
