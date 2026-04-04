@@ -2917,7 +2917,6 @@ document.getElementById('btnReport').addEventListener('click', exportPDF);
 document.getElementById('btnExportXLSX').addEventListener('click', exportXLSX);
 document.getElementById('btnExportCSV').addEventListener('click', exportCSV);
 document.getElementById('btnReset').addEventListener('click', () => {
-  logUserActivity('data_clear', 'Cleared all data');
   rawData = [];
   processedData = [];
   resultsData = [];
@@ -2929,8 +2928,10 @@ document.getElementById('btnReset').addEventListener('click', () => {
   document.getElementById('btnReport').disabled = true;
   document.getElementById('btnSaveReport').disabled = true;
   document.getElementById('btnReset').disabled = true;
-  document.getElementById('fileList').innerHTML = '';
-  btnProcess.disabled = true;
+  document.getElementById('fileList').textContent = '';
+  document.getElementById('fileInput').value = '';
+  const dz = document.getElementById('dropZone');
+  if (dz) dz.style.display = '';
   if (ljChartInstance) ljChartInstance.destroy();
   if (cvChartInstance) cvChartInstance.destroy();
 });
