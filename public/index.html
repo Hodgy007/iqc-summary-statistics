@@ -1751,6 +1751,7 @@ function parseCSV(text) {
     const val = parseFloat(fields[5]);
     if (isNaN(val)) continue;
     rows.push({
+      _id: rows.length,
       protocol: fields[0] || '',
       instrument: fields[1] || '',
       parameter: fields[2] || '',
@@ -2714,6 +2715,11 @@ function applyFilters() {
     );
   }
 
+  // Remove deleted data points
+  if (deletedPointIds.size > 0) {
+    base = base.filter(r => !deletedPointIds.has(r._id));
+  }
+
   processedData = base;
   resultsData = buildResults(processedData);
   renderStats();
@@ -2735,6 +2741,7 @@ document.getElementById('chartInstruments').addEventListener('change', renderLJC
 // EXCLUSION PANEL
 // =============================================
 let exclusions = []; // [{analyte, instrument}]
+let deletedPointIds = new Set(); // track deleted data point _ids
 
 document.getElementById('exclusionToggle').addEventListener('click', () => {
   document.getElementById('exclusionBody').classList.toggle('open');
@@ -2887,30 +2894,60 @@ document.getElementById('resultsTable').addEventListener('click', e => {
   html += `<table class="data-points-table"><thead><tr>`;
   html += `<th>#</th><th>Date</th><th>Value</th><th>Deviation</th>`;
   if (inst === 'combined') html += `<th>Instrument</th>`;
-  html += `<th>Protocol</th><th>Status</th><th>Sample ID</th>`;
+  html += `<th>Protocol</th><th>Status</th><th>Sample ID</th><th></th>`;
   html += `</tr></thead><tbody>`;
 
   points.forEach((p, i) => {
     const dev = p.value - mean;
     const sdAway = sd > 0 ? Math.abs(dev / sd) : 0;
     const highlight = sdAway > 2 ? ' class="highlight-row"' : '';
-    html += `<tr${highlight}>`;
+    const pointId = p._id !== undefined ? p._id : i;
+    html += `<tr${highlight} id="point-row-${pointId}">`;
     html += `<td>${i + 1}</td>`;
     html += `<td>${escapeHtml(p.date)}</td>`;
-    html += `<td><b>${escapeHtml(p.value)}</b></td>`;
+    html += `<td><b>${escapeHtml(String(p.value))}</b></td>`;
     html += `<td>${dev >= 0 ? '+' : ''}${dev.toFixed(3)} (${sdAway.toFixed(1)} SD)</td>`;
     if (inst === 'combined') html += `<td>${escapeHtml(p.instrument)}</td>`;
     html += `<td>${escapeHtml(p.protocol)}</td>`;
     html += `<td>${escapeHtml(p.status)}</td>`;
     html += `<td>${escapeHtml(p.sampleId)}</td>`;
+    html += `<td><button class="btn btn-danger" style="padding:2px 8px;font-size:11px" onclick="deleteDataPoint(${pointId}, '${param}', '${level}', '${inst}', '${stat}')">Remove</button></td>`;
     html += `</tr>`;
   });
 
   html += `</tbody></table></div></div>`;
+  if (deletedPointIds.size > 0) {
+    html += `<div style="margin-top:8px;font-size:12px;color:var(--text-dim)">${deletedPointIds.size} data point(s) removed this session. <a href="#" style="color:var(--accent)" onclick="restoreAllPoints();return false">Restore all</a></div>`;
+  }
 
   modalBody.innerHTML = html;
   modalOverlay.classList.add('active');
 });
+
+function deleteDataPoint(pointId, param, level, inst, stat) {
+  deletedPointIds.add(pointId);
+  // Fade out the row
+  const row = document.getElementById('point-row-' + pointId);
+  if (row) {
+    row.style.opacity = '0.3';
+    row.style.textDecoration = 'line-through';
+    row.querySelector('button').disabled = true;
+  }
+  // Recompute results and re-render table behind the modal
+  applyFilters();
+  // Re-open the same modal to refresh the stats
+  setTimeout(() => {
+    // Find and click the same cell to refresh the modal
+    const cell = document.querySelector(`td.clickable[data-param="${param}"][data-level="${level}"][data-inst="${inst}"][data-stat="${stat}"]`);
+    if (cell) cell.click();
+  }, 200);
+}
+
+function restoreAllPoints() {
+  deletedPointIds.clear();
+  applyFilters();
+  modalOverlay.classList.remove('active');
+}
 
 // Export & Reset
 document.getElementById('btnReport').addEventListener('click', exportPDF);
@@ -2921,6 +2958,7 @@ document.getElementById('btnReset').addEventListener('click', () => {
   processedData = [];
   resultsData = [];
   uploadedFiles = [];
+  deletedPointIds.clear();
   document.getElementById('uploadSection').classList.remove('hidden');
   document.getElementById('resultsSection').classList.add('hidden');
   document.getElementById('btnExportCSV').disabled = true;
