@@ -1125,6 +1125,40 @@
   </div>
 </div>
 
+<!-- Save Report Dialog -->
+<div class="modal-overlay" id="saveModalOverlay">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header">
+      <h3>Save Report</h3>
+      <button class="modal-close" id="saveModalClose">&#10005;</button>
+    </div>
+    <div class="modal-body" style="padding:20px">
+      <label style="display:block;margin-bottom:6px;font-size:13px;color:var(--text-dim)">Report name</label>
+      <input id="saveReportName" type="text" placeholder="e.g. March 2025 IQC"
+        style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;box-sizing:border-box;outline:none">
+      <div style="margin-top:18px;margin-bottom:6px;font-size:13px;color:var(--text-dim)">What to save</div>
+      <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;margin-bottom:8px;font-size:13px" id="saveOptFiltered">
+        <input type="radio" name="saveScope" value="filtered" checked style="accent-color:var(--accent)">
+        <div>
+          <div style="font-weight:600;color:var(--text)">Current filtered view</div>
+          <div style="color:var(--text-dim);font-size:12px;margin-top:2px">Saves only the data matching your current date range, protocol and exclusion filters</div>
+        </div>
+      </label>
+      <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:13px" id="saveOptAll">
+        <input type="radio" name="saveScope" value="all" style="accent-color:var(--accent)">
+        <div>
+          <div style="font-weight:600;color:var(--text)">All loaded data</div>
+          <div style="color:var(--text-dim);font-size:12px;margin-top:2px">Saves the full dataset across all uploaded files, ignoring current filters</div>
+        </div>
+      </label>
+      <div style="display:flex;gap:10px;margin-top:20px">
+        <button class="btn" id="saveModalCancel" style="flex:1">Cancel</button>
+        <button class="btn btn-primary" id="saveModalConfirm" style="flex:2">Save Report</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="processing-overlay" id="processingOverlay">
   <div class="spinner"></div>
   <div class="processing-text" id="processingText">Processing data...</div>
@@ -3061,10 +3095,36 @@ const loadModalBody = document.getElementById('loadModalBody');
 document.getElementById('loadModalClose').addEventListener('click', () => loadModalOverlay.classList.remove('active'));
 loadModalOverlay.addEventListener('click', e => { if (e.target === loadModalOverlay) loadModalOverlay.classList.remove('active'); });
 
-// Save Report
-document.getElementById('btnSaveReport').addEventListener('click', async () => {
-  const name = prompt('Enter a name for this report:');
-  if (!name) return;
+// Save Report — dialog
+const saveModalOverlay = document.getElementById('saveModalOverlay');
+document.getElementById('btnSaveReport').addEventListener('click', () => {
+  document.getElementById('saveReportName').value = '';
+  document.querySelector('input[name="saveScope"][value="filtered"]').checked = true;
+  saveModalOverlay.classList.add('active');
+  setTimeout(() => document.getElementById('saveReportName').focus(), 50);
+});
+document.getElementById('saveModalClose').addEventListener('click', () => saveModalOverlay.classList.remove('active'));
+document.getElementById('saveModalCancel').addEventListener('click', () => saveModalOverlay.classList.remove('active'));
+saveModalOverlay.addEventListener('click', e => { if (e.target === saveModalOverlay) saveModalOverlay.classList.remove('active'); });
+
+document.getElementById('saveReportName').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('saveModalConfirm').click();
+});
+
+document.getElementById('saveModalConfirm').addEventListener('click', async () => {
+  const name = document.getElementById('saveReportName').value.trim();
+  if (!name) { document.getElementById('saveReportName').focus(); return; }
+  const scope = document.querySelector('input[name="saveScope"]:checked').value;
+  saveModalOverlay.classList.remove('active');
+
+  // Compute the results to save
+  const saveResults = scope === 'all' ? buildResults(processData(rawData)) : resultsData;
+
+  // Compute date range from the dataset being saved
+  const saveData = scope === 'all' ? processData(rawData) : processedData;
+  const datedSave = saveData.map(r => ({ str: r.date, t: parseDate(r.date).getTime() })).filter(d => d.t > 0);
+  const saveRangeMin = datedSave.length ? parseDate(datedSave.reduce((m, d) => d.t < m.t ? d : m).str).toISOString().split('T')[0] : '';
+  const saveRangeMax = datedSave.length ? parseDate(datedSave.reduce((m, d) => d.t > m.t ? d : m).str).toISOString().split('T')[0] : '';
 
   const btn = document.getElementById('btnSaveReport');
   btn.disabled = true;
@@ -3077,14 +3137,14 @@ document.getElementById('btnSaveReport').addEventListener('click', async () => {
       body: JSON.stringify({
         name,
         raw_data: [],
-        results_data: resultsData,
-        exclusions,
+        results_data: saveResults,
+        exclusions: scope === 'filtered' ? exclusions : [],
         filters: {
-          protocol: document.getElementById('filterProtocol').value,
-          dateFrom: document.getElementById('filterDateFrom').value,
-          dateTo: document.getElementById('filterDateTo').value,
-          dateRangeMin: processedData.reduce((min, r) => (!min || r.date < min) ? r.date : min, '').substring(0, 10),
-          dateRangeMax: processedData.reduce((max, r) => (!max || r.date > max) ? r.date : max, '').substring(0, 10),
+          protocol: scope === 'filtered' ? document.getElementById('filterProtocol').value : 'all',
+          dateFrom: scope === 'filtered' ? document.getElementById('filterDateFrom').value : '',
+          dateTo: scope === 'filtered' ? document.getElementById('filterDateTo').value : '',
+          dateRangeMin: saveRangeMin,
+          dateRangeMax: saveRangeMax,
         }
       })
     });
