@@ -48,17 +48,31 @@ export default async function handler(req, res) {
         return res.status(403).json({ error: 'You can only update your own reports' });
       }
 
-      const { results_data_chunk } = req.body;
-      if (!results_data_chunk) return res.status(400).json({ error: 'Chunk data required' });
+      const { results_data_chunk, raw_data_chunk } = req.body;
+      if (!results_data_chunk && !raw_data_chunk) {
+        return res.status(400).json({ error: 'Chunk data required' });
+      }
 
-      // Append chunk to existing results_data
-      const updated = await sql`
-        UPDATE reports
-        SET results_data = COALESCE(results_data, '[]'::jsonb) || ${JSON.stringify(results_data_chunk)}::jsonb
-        WHERE id = ${id}
-        RETURNING id, name, created_at
-      `;
+      let updateQuery;
+      if (raw_data_chunk) {
+        // Replace raw_data entirely
+        updateQuery = sql`
+          UPDATE reports
+          SET raw_data = ${JSON.stringify(raw_data_chunk)}::jsonb
+          WHERE id = ${id}
+          RETURNING id, name, created_at
+        `;
+      } else {
+        // Append to results_data
+        updateQuery = sql`
+          UPDATE reports
+          SET results_data = COALESCE(results_data, '[]'::jsonb) || ${JSON.stringify(results_data_chunk)}::jsonb
+          WHERE id = ${id}
+          RETURNING id, name, created_at
+        `;
+      }
 
+      const updated = await updateQuery;
       res.status(200).json(updated[0]);
     } catch (err) {
       console.error('Report chunk update error:', err);
