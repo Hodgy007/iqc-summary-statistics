@@ -3263,7 +3263,6 @@ document.getElementById('saveModalConfirm').addEventListener('click', async () =
       return;
     }
 
-    const t0 = Date.now();
     btn.textContent = `Uploading ${bodyMB}MB...`;
 
     const resp = await fetch('/api/reports', {
@@ -3271,17 +3270,15 @@ document.getElementById('saveModalConfirm').addEventListener('click', async () =
       headers: { 'Content-Type': 'application/json' },
       body: bodyStr
     });
-    const t1 = Date.now();
     const data = await resp.json();
     if (!resp.ok) {
-      alert(`Error saving (took ${((t1-t0)/1000).toFixed(1)}s): ` + (data.error || data.detail || 'Unknown error'));
+      alert('Error saving: ' + (data.error || data.detail || 'Unknown error'));
       btn.disabled = false;
       btn.textContent = 'Save Report';
       return;
     }
 
-    const tm = data._timing || {};
-    alert(`Report saved: ${data.name}\n\nTotal: ${((t1-t0)/1000).toFixed(1)}s (${bodyMB}MB upload)\n\nServer timing:\n  Auth: ${tm.authMs || '?'}ms\n  Bundle: ${tm.bundleMs || '?'}ms (${tm.bundleSizeKB || '?'}KB)\n  DB INSERT: ${tm.insertMs || '?'}ms\n  Server total: ${tm.totalMs || '?'}ms`);
+    alert(`Report saved: ${data.name}`);
   } catch (err) {
     alert('Error saving report: ' + err.message);
   }

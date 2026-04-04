@@ -2,8 +2,8 @@ import { neon } from '@neondatabase/serverless';
 import { requireAuth } from './lib/auth.js';
 
 export default async function handler(req, res) {
-  // const user = await requireAuth(req, res, { role: 'admin' });
-  // if (!user) return;
+  const user = await requireAuth(req, res, { role: 'admin' });
+  if (!user) return;
 
   const sql = neon(process.env.DATABASE_URL);
 

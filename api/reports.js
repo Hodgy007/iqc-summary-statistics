@@ -3,11 +3,9 @@ import { requireAuth } from './lib/auth.js';
 import { logActivity } from './lib/activity.js';
 
 export default async function handler(req, res) {
-  const t = { start: Date.now() };
   const minPerm = req.method === 'GET' ? undefined : { permission: 'full_access' };
   const user = await requireAuth(req, res, minPerm);
   if (!user) return;
-  t.auth = Date.now();
 
   const sql = neon(process.env.DATABASE_URL);
 
@@ -37,40 +35,26 @@ export default async function handler(req, res) {
 
       // Compressed format - everything in one TEXT column, no JSONB
       if (raw_data_gz || results_data_gz) {
-        t.bundleStart = Date.now();
         const bundle = JSON.stringify({
           r: raw_data_gz || '', d: results_data_gz || '',
           e: exclusions || [], f: filters || {}
         });
-        t.bundleEnd = Date.now();
-        t.bundleSizeKB = Math.round(bundle.length / 1024);
         let rows;
         try {
-          t.insertStart = Date.now();
           rows = await sql`
             INSERT INTO reports (name, user_id, compressed_data)
             VALUES (${name}, ${user.id}, ${bundle})
             RETURNING id, name, created_at
           `;
-          t.insertEnd = Date.now();
         } catch (insertErr) {
-          t.insertFallbackStart = Date.now();
           rows = await sql`
             INSERT INTO reports (name, compressed_data)
             VALUES (${name}, ${bundle})
             RETURNING id, name, created_at
           `;
-          t.insertFallbackEnd = Date.now();
         }
         logActivity(user.id, 'report_save', `Saved report: ${name}`);
-        const timing = {
-          authMs: t.auth - t.start,
-          bundleMs: t.bundleEnd - t.bundleStart,
-          insertMs: (t.insertEnd || t.insertFallbackEnd) - (t.insertStart || t.insertFallbackStart),
-          totalMs: Date.now() - t.start,
-          bundleSizeKB: t.bundleSizeKB
-        };
-        return res.status(201).json({ ...rows[0], _timing: timing });
+        return res.status(201).json(rows[0]);
       }
 
       // Legacy uncompressed format
