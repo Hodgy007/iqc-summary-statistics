@@ -3312,13 +3312,12 @@ document.getElementById('btnLoadReport').addEventListener('click', async () => {
 
     loadModalBody.innerHTML = `
       <table class="data-points-table" style="width:100%">
-        <thead><tr><th>Name</th><th>Date Saved</th><th>Results</th><th></th><th></th></tr></thead>
+        <thead><tr><th>Name</th><th>Date Saved</th><th></th><th></th></tr></thead>
         <tbody>
           ${reports.map(r => `
             <tr>
               <td style="text-align:left;font-weight:600">${escapeHtml(r.name)}</td>
               <td>${new Date(r.created_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })}</td>
-              <td>${r.result_count === -1 ? 'Compressed' : (r.result_count || 0) + ' rows'}</td>
               <td><button class="btn btn-primary" style="padding:4px 12px;font-size:12px" onclick="loadReport(${r.id})">Load</button></td>
               <td><button class="btn btn-danger" style="padding:4px 12px;font-size:12px" onclick="deleteReport(${r.id})">Delete</button></td>
             </tr>

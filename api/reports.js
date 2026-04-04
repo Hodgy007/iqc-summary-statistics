@@ -15,12 +15,7 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
       const rows = await sql`
-        SELECT id, name, created_at,
-          CASE
-            WHEN compressed_data IS NOT NULL THEN -1
-            WHEN jsonb_typeof(results_data) = 'array' THEN jsonb_array_length(results_data)
-            ELSE 0
-          END as result_count
+        SELECT id, name, created_at
         FROM reports
         ORDER BY created_at DESC
       `;
