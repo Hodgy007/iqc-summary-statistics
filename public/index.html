@@ -3161,7 +3161,7 @@ document.getElementById('saveModalConfirm').addEventListener('click', async () =
     });
 
     const sizeMB = (payload.length / 1024 / 1024).toFixed(1);
-    if (payload.length > 4 * 1024 * 1024) {
+    if (payload.length > 10 * 1024 * 1024) {
       alert(`Report data is too large to save (${sizeMB} MB). Try saving with filters applied to reduce the dataset.`);
       btn.disabled = false;
       btn.textContent = 'Save Report';
