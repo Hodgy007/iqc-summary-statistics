@@ -40,6 +40,16 @@ export default async function handler(req, res) {
         created_at TIMESTAMPTZ DEFAULT NOW()
       )
     `;
+    await sql`
+      CREATE TABLE IF NOT EXISTS report_chunks (
+        id SERIAL PRIMARY KEY,
+        report_id INTEGER NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
+        chunk_type TEXT NOT NULL,
+        chunk_index INTEGER NOT NULL DEFAULT 0,
+        data JSONB NOT NULL
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS idx_report_chunks_report_id ON report_chunks(report_id, chunk_type, chunk_index)`;
     // Add user_id column if it doesn't exist (for existing installations)
     await sql`
       DO $$ BEGIN

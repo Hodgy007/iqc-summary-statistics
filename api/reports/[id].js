@@ -14,8 +14,27 @@ export default async function handler(req, res) {
     try {
       const rows = await sql`SELECT * FROM reports WHERE id = ${id}`;
       if (rows.length === 0) return res.status(404).json({ error: 'Report not found' });
-      logActivity(user.id, 'report_load', `Loaded report: ${rows[0].name}`);
-      res.status(200).json(rows[0]);
+      const report = rows[0];
+
+      // Assemble chunked data if available
+      try {
+        const chunks = await sql`
+          SELECT chunk_type, data FROM report_chunks
+          WHERE report_id = ${id}
+          ORDER BY chunk_type, chunk_index
+        `;
+        if (chunks.length > 0) {
+          const rawChunks = chunks.filter(c => c.chunk_type === 'raw_data').flatMap(c => c.data);
+          const resChunks = chunks.filter(c => c.chunk_type === 'results_data').flatMap(c => c.data);
+          if (rawChunks.length > 0) report.raw_data = rawChunks;
+          if (resChunks.length > 0) report.results_data = resChunks;
+        }
+      } catch {
+        // report_chunks table may not exist yet - use inline data
+      }
+
+      logActivity(user.id, 'report_load', `Loaded report: ${report.name}`);
+      res.status(200).json(report);
     } catch (err) {
       console.error('Report fetch error:', err);
       res.status(500).json({ error: 'Failed to load report' });
@@ -53,32 +72,21 @@ export default async function handler(req, res) {
         return res.status(403).json({ error: 'You can only update your own reports' });
       }
 
-      const { results_data_chunk, raw_data_chunk } = req.body;
+      const { results_data_chunk, raw_data_chunk, chunk_index } = req.body;
       if (!results_data_chunk && !raw_data_chunk) {
         return res.status(400).json({ error: 'Chunk data required' });
       }
 
-      let updateQuery;
-      if (raw_data_chunk) {
-        // Append raw_data chunks
-        updateQuery = sql`
-          UPDATE reports
-          SET raw_data = COALESCE(raw_data, '[]'::jsonb) || ${JSON.stringify(raw_data_chunk)}::jsonb
-          WHERE id = ${id}
-          RETURNING id, name, created_at
-        `;
-      } else {
-        // Append to results_data
-        updateQuery = sql`
-          UPDATE reports
-          SET results_data = COALESCE(results_data, '[]'::jsonb) || ${JSON.stringify(results_data_chunk)}::jsonb
-          WHERE id = ${id}
-          RETURNING id, name, created_at
-        `;
-      }
+      const chunkType = raw_data_chunk ? 'raw_data' : 'results_data';
+      const chunkData = raw_data_chunk || results_data_chunk;
+      const idx = chunk_index || 0;
 
-      const updated = await updateQuery;
-      res.status(200).json(updated[0]);
+      await sql`
+        INSERT INTO report_chunks (report_id, chunk_type, chunk_index, data)
+        VALUES (${id}, ${chunkType}, ${idx}, ${JSON.stringify(chunkData)}::jsonb)
+      `;
+
+      res.status(200).json({ id, chunk_type: chunkType, chunk_index: idx });
     } catch (err) {
       console.error('Report chunk update error:', err);
       res.status(500).json({ error: 'Failed to append chunk', detail: err.message });

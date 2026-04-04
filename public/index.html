@@ -3283,38 +3283,24 @@ document.getElementById('saveModalConfirm').addEventListener('click', async () =
     const reportId = data.id;
     let chunksSent = 0;
     const totalChunks = rawDataChunks.length + resultsChunks.length;
-    btn.textContent = `Saving ${totalDataMB}MB (1/${totalChunks})...`;
+    btn.textContent = `Saving ${totalDataMB}MB (0/${totalChunks})...`;
 
-    // Send raw_data chunks via PATCH
-    for (let i = 0; i < rawDataChunks.length; i++) {
-      btn.textContent = `Saving (${++chunksSent}/${totalChunks})...`;
-      const chunkPayload = JSON.stringify({ raw_data_chunk: rawDataChunks[i] });
+    // Send all chunks via PATCH (raw_data then results_data)
+    const allChunks = [
+      ...rawDataChunks.map((c, i) => ({ raw_data_chunk: c, chunk_index: i })),
+      ...resultsChunks.map((c, i) => ({ results_data_chunk: c, chunk_index: i }))
+    ];
+
+    for (const chunk of allChunks) {
+      btn.textContent = `Saving ${totalDataMB}MB (${++chunksSent}/${totalChunks})...`;
       const chunkResp = await fetch(`/api/reports/${reportId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: chunkPayload
+        body: JSON.stringify(chunk)
       });
-      const chunkData = await chunkResp.json();
       if (!chunkResp.ok) {
-        alert('Error uploading raw data chunk ' + (i + 1) + ': ' + (chunkData.error || 'Unknown error'));
-        btn.disabled = false;
-        btn.textContent = 'Save Report';
-        return;
-      }
-    }
-
-    // Send results_data chunks via PATCH
-    for (let i = 0; i < resultsChunks.length; i++) {
-      btn.textContent = `Saving (${++chunksSent}/${totalChunks})...`;
-      const chunkPayload = JSON.stringify({ results_data_chunk: resultsChunks[i] });
-      const chunkResp = await fetch(`/api/reports/${reportId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: chunkPayload
-      });
-      const chunkData = await chunkResp.json();
-      if (!chunkResp.ok) {
-        alert('Error uploading results chunk ' + (i + 1) + ': ' + (chunkData.error || 'Unknown error'));
+        const chunkErr = await chunkResp.json();
+        alert('Error uploading chunk ' + chunksSent + ': ' + (chunkErr.error || 'Unknown error'));
         btn.disabled = false;
         btn.textContent = 'Save Report';
         return;
