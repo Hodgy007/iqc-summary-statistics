@@ -2557,6 +2557,11 @@ function removeFile(idx) {
   uploadedFiles.splice(idx, 1);
   renderFileList();
   btnProcess.disabled = uploadedFiles.length === 0;
+  if (uploadedFiles.length > 0) {
+    processFiles();
+  } else {
+    document.getElementById('btnReset').click();
+  }
 }
 
 async function processFiles() {
@@ -2571,7 +2576,10 @@ async function processFiles() {
     rawData = [];
     for (const file of uploadedFiles) {
       const text = await file.text();
-      rawData.push(...parseCSV(text));
+      const rows = parseCSV(text);
+      const offset = rawData.length;
+      rows.forEach(r => { r._id += offset; });
+      rawData.push(...rows);
     }
 
     document.getElementById('processingText').textContent = `Processing ${rawData.length.toLocaleString()} records...`;
