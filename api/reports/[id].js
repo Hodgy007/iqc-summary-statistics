@@ -16,15 +16,17 @@ export default async function handler(req, res) {
       if (rows.length === 0) return res.status(404).json({ error: 'Report not found' });
       const report = rows[0];
 
-      // Assemble chunked data if available
-      try {
+      // Check for compressed data first, then chunks table
+      if (report.compressed_data) {
+        report._compressed = JSON.parse(report.compressed_data);
+        delete report.compressed_data;
+      } else try {
         const chunks = await sql`
           SELECT chunk_type, chunk_index, data FROM report_chunks
           WHERE report_id = ${id}
           ORDER BY chunk_type, chunk_index
         `;
         if (chunks.length > 0) {
-          // Send compressed chunks to client for decompression
           report._chunks = chunks.map(c => ({ type: c.chunk_type, index: c.chunk_index, data: c.data }));
           report.raw_data = report.raw_data || [];
           report.results_data = report.results_data || [];

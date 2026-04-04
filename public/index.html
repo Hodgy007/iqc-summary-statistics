@@ -3335,7 +3335,7 @@ async function loadReport(id) {
       return;
     }
 
-    // Decompress gzipped chunks if present
+    // Decompress gzipped data if present
     async function decompressBase64(b64) {
       const binary = atob(b64);
       const bytes = new Uint8Array(binary.length);
@@ -3345,6 +3345,18 @@ async function loadReport(id) {
       return JSON.parse(text);
     }
 
+    // New compressed_data format (single column)
+    if (report._compressed) {
+      loadModalBody.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-dim)">Decompressing data...</div>';
+      const [rawData, resData] = await Promise.all([
+        report._compressed.r ? decompressBase64(report._compressed.r) : [],
+        report._compressed.d ? decompressBase64(report._compressed.d) : []
+      ]);
+      report.raw_data = rawData;
+      report.results_data = resData;
+    }
+
+    // Legacy chunks format
     if (report._chunks && report._chunks.length > 0) {
       loadModalBody.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-dim)">Decompressing data...</div>';
       const rawChunks = report._chunks.filter(c => c.type === 'raw_data').sort((a, b) => a.index - b.index);

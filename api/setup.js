@@ -64,6 +64,13 @@ export default async function handler(req, res) {
       EXCEPTION WHEN others THEN NULL;
       END $$
     `;
+    // Add compressed_data column for gzipped report storage
+    await sql`
+      DO $$ BEGIN
+        ALTER TABLE reports ADD COLUMN IF NOT EXISTS compressed_data TEXT;
+      EXCEPTION WHEN others THEN NULL;
+      END $$
+    `;
     res.status(200).json({ success: true, message: 'Database setup complete' });
   } catch (err) {
     console.error('Setup error:', err);

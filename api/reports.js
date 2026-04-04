@@ -33,40 +33,23 @@ export default async function handler(req, res) {
       const { name, raw_data, results_data, raw_data_gz, results_data_gz, exclusions, filters } = req.body;
       if (!name) return res.status(400).json({ error: 'Name is required' });
 
-      // If compressed data is provided, store in report_chunks table
+      // Compressed format - single TEXT column
       if (raw_data_gz || results_data_gz) {
+        const compressedBundle = JSON.stringify({ r: raw_data_gz || '', d: results_data_gz || '' });
         let rows;
         try {
           rows = await sql`
-            INSERT INTO reports (name, user_id, raw_data, results_data, exclusions, filters)
-            VALUES (${name}, ${user.id}, '[]'::jsonb, '[]'::jsonb, ${JSON.stringify(exclusions || [])}::jsonb, ${JSON.stringify(filters || {})}::jsonb)
+            INSERT INTO reports (name, user_id, raw_data, results_data, exclusions, filters, compressed_data)
+            VALUES (${name}, ${user.id}, '[]'::jsonb, '[]'::jsonb, ${JSON.stringify(exclusions || [])}::jsonb, ${JSON.stringify(filters || {})}::jsonb, ${compressedBundle})
             RETURNING id, name, created_at
           `;
         } catch (insertErr) {
           rows = await sql`
-            INSERT INTO reports (name, raw_data, results_data, exclusions, filters)
-            VALUES (${name}, '[]'::jsonb, '[]'::jsonb, ${JSON.stringify(exclusions || [])}::jsonb, ${JSON.stringify(filters || {})}::jsonb)
+            INSERT INTO reports (name, raw_data, results_data, exclusions, filters, compressed_data)
+            VALUES (${name}, '[]'::jsonb, '[]'::jsonb, ${JSON.stringify(exclusions || [])}::jsonb, ${JSON.stringify(filters || {})}::jsonb, ${compressedBundle})
             RETURNING id, name, created_at
           `;
         }
-        const reportId = rows[0].id;
-
-        // Store compressed data as TEXT chunks (fast INSERT, no JSONB parsing)
-        const chunkInserts = [];
-        if (raw_data_gz) {
-          chunkInserts.push(sql`
-            INSERT INTO report_chunks (report_id, chunk_type, chunk_index, data)
-            VALUES (${reportId}, 'raw_data', 0, ${raw_data_gz})
-          `);
-        }
-        if (results_data_gz) {
-          chunkInserts.push(sql`
-            INSERT INTO report_chunks (report_id, chunk_type, chunk_index, data)
-            VALUES (${reportId}, 'results_data', 0, ${results_data_gz})
-          `);
-        }
-        await Promise.all(chunkInserts);
-
         logActivity(user.id, 'report_save', `Saved report: ${name}`);
         return res.status(201).json(rows[0]);
       }
