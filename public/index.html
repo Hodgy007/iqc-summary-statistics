@@ -3184,6 +3184,10 @@ document.getElementById('saveModalConfirm').addEventListener('click', async () =
     }
     if (currentChunk.length > 0) resultsChunks.push(currentChunk);
 
+    // Calculate total data size
+    const totalDataSize = JSON.stringify(slimData).length + JSON.stringify(saveResults).length;
+    const totalDataMB = (totalDataSize / 1024 / 1024).toFixed(2);
+
     // First request: POST metadata only (no raw_data, no results_data)
     const firstPayload = JSON.stringify({
       name,
@@ -3216,6 +3220,7 @@ document.getElementById('saveModalConfirm').addEventListener('click', async () =
     const reportId = data.id;
     let chunksSent = 0;
     const totalChunks = rawDataChunks.length + resultsChunks.length;
+    btn.textContent = `Saving ${totalDataMB}MB (1/${totalChunks})...`;
 
     // Send raw_data chunks via PATCH
     for (let i = 0; i < rawDataChunks.length; i++) {
