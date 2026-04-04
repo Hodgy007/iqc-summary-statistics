@@ -44,7 +44,7 @@ function parseCSV(text) {
     rows.push({
       protocol: fields[0] || '',
       instrument: fields[1] || '',
-      parameter: fields[2] || '',
+      parameter: (fields[2] || '').replace(/^[CI]_/, ''),
       level: fields[3] || '',
       date: fields[4] || '',
       value: val,

@@ -66,6 +66,18 @@ describe('parseCSV', () => {
     expect(rows).toHaveLength(2);
   });
 
+  test('strips C_ and I_ prefixes from parameter names', () => {
+    const csv = [
+      'Proto1;AU5800 1 L;C_CRP;1;01/01/2025;5.5;5.0;0.3;Accepted;;;user1;',
+      'Proto1;AU5800 1 L;I_HBC;1;01/01/2025;5.5;5.0;0.3;Accepted;;;user1;',
+      'Proto1;AU5800 1 L;Glucose;1;01/01/2025;5.5;5.0;0.3;Accepted;;;user1;',
+    ].join('\n');
+    const rows = parseCSV(csv);
+    expect(rows[0].parameter).toBe('CRP');
+    expect(rows[1].parameter).toBe('HBC');
+    expect(rows[2].parameter).toBe('Glucose');
+  });
+
   test('handles missing optional fields gracefully', () => {
     const csv = 'Proto1;AU5800 1 L;Glucose;1;01/01/2025;5.5;5.0;0.3;Accepted';
     const rows = parseCSV(csv);
