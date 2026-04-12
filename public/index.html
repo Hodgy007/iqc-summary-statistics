@@ -1014,6 +1014,12 @@
           </select>
         </div>
         <div class="filter-group">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap">
+            <input type="checkbox" id="filterExcludeEval" checked style="accent-color:var(--accent)">
+            Exclude Eval Protocols
+          </label>
+        </div>
+        <div class="filter-group">
           <label>Protocol</label>
           <select id="filterProtocol">
             <option value="all">All Protocols</option>
@@ -1821,10 +1827,11 @@ function parseCSV(text) {
 // DATA PROCESSING (replicates VBA logic)
 // =============================================
 function processData(data) {
-  // 1. Filter out excluded protocols and evaluations
+  // 1. Filter out excluded protocols (and evaluations if toggle is checked)
+  const excludeEval = document.getElementById('filterExcludeEval')?.checked !== false;
   let filtered = data.filter(row => {
     if (EXCLUDED_PROTOCOLS.has(row.protocol)) return false;
-    if (row.protocol.toLowerCase().includes('eval')) return false;
+    if (excludeEval && row.protocol.toLowerCase().includes('eval')) return false;
     return true;
   });
 
@@ -2735,12 +2742,12 @@ document.getElementById('filterSearch').addEventListener('input', renderResultsT
 document.getElementById('filterCV').addEventListener('change', renderResultsTable);
 document.getElementById('filterStatus').addEventListener('change', () => {
   const status = document.getElementById('filterStatus').value;
+  const excludeEval = document.getElementById('filterExcludeEval').checked;
   if (status === 'all') {
-    processedData = processData(rawData);
     // Re-include rejected
     let all = rawData.filter(row => {
       if (EXCLUDED_PROTOCOLS.has(row.protocol)) return false;
-      if (row.protocol.toLowerCase().includes('eval')) return false;
+      if (excludeEval && row.protocol.toLowerCase().includes('eval')) return false;
       return true;
     }).map(row => {
       const mapped = INSTRUMENTS_MAP[row.instrument];
@@ -2753,7 +2760,7 @@ document.getElementById('filterStatus').addEventListener('change', () => {
   } else if (status === 'rejected') {
     let all = rawData.filter(row => {
       if (EXCLUDED_PROTOCOLS.has(row.protocol)) return false;
-      if (row.protocol.toLowerCase().includes('eval')) return false;
+      if (excludeEval && row.protocol.toLowerCase().includes('eval')) return false;
       return row.status === 'Manually rejected';
     }).map(row => {
       const mapped = INSTRUMENTS_MAP[row.instrument];
@@ -2808,6 +2815,7 @@ function applyFilters() {
 document.getElementById('filterProtocol').addEventListener('change', applyFilters);
 document.getElementById('filterDateFrom').addEventListener('change', applyFilters);
 document.getElementById('filterDateTo').addEventListener('change', applyFilters);
+document.getElementById('filterExcludeEval').addEventListener('change', applyFilters);
 document.getElementById('rawSearch').addEventListener('input', () => { rawPage = 0; renderRawData(); });
 
 // Chart filter handlers
