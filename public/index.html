@@ -1451,6 +1451,7 @@ async function loadUsers() {
               <option value="view_only" ${u.permission === 'view_only' ? 'selected' : ''}>View Only</option>
               <option value="full_access" ${u.permission === 'full_access' ? 'selected' : ''}>Full Access</option>
             </select>
+            <button class="btn" onclick="resetUserPassword(${u.id}, '${escapeHtml(u.email).replace(/'/g, "\\'")}')" style="font-size:11px;padding:4px 10px;background:#7c3aed;border-color:#7c3aed">Reset Password</button>
           `}
         </div>
       </div>`;
@@ -1479,6 +1480,26 @@ async function updateUserPermission(userId, permission) {
       body: JSON.stringify({ userId, permission })
     });
     loadUsers();
+  } catch (err) { alert('Error: ' + err.message); }
+}
+
+async function resetUserPassword(userId, email) {
+  const newPassword = prompt(`Enter new password for ${email}\n(minimum 8 characters):`);
+  if (!newPassword) return;
+  if (newPassword.length < 8) { alert('Password must be at least 8 characters'); return; }
+
+  try {
+    const resp = await fetch('/api/admin/reset-password', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, newPassword })
+    });
+    const data = await resp.json();
+    if (resp.ok) {
+      alert(`Password reset successfully for ${email}`);
+    } else {
+      alert('Error: ' + (data.error || 'Failed to reset password'));
+    }
   } catch (err) { alert('Error: ' + err.message); }
 }
 
