@@ -57,6 +57,16 @@ export default async function handler(req, res) {
       END $$
     `;
     await sql`CREATE INDEX IF NOT EXISTS idx_report_chunks_report_id ON report_chunks(report_id, chunk_type, chunk_index)`;
+    await sql`
+      CREATE TABLE IF NOT EXISTS csv_files (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        compressed_data TEXT NOT NULL,
+        file_size INTEGER DEFAULT 0,
+        user_id INTEGER REFERENCES users(id),
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
     // Add user_id column if it doesn't exist (for existing installations)
     await sql`
       DO $$ BEGIN

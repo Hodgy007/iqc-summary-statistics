@@ -865,6 +865,7 @@
   <div class="header-actions">
     <div class="user-badge" id="userBadge"></div>
     <button class="btn" id="btnSettings" class="hidden" style="display:none">Settings</button>
+    <button class="btn" id="btnDataStore" style="background:#7c3aed;border-color:#7c3aed">Data Store</button>
     <button class="btn" id="btnLoadReport" style="background:var(--accent);border-color:var(--accent)">Load Report</button>
     <button class="btn btn-primary" id="btnSaveReport" disabled>Save Report</button>
     <button class="btn btn-primary" id="btnReport" disabled>Create Report (PDF)</button>
@@ -1161,6 +1162,31 @@
       <div style="display:flex;gap:10px;margin-top:20px">
         <button class="btn" id="saveModalCancel" style="flex:1">Cancel</button>
         <button class="btn btn-primary" id="saveModalConfirm" style="flex:2">Save Report</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Data Store Modal -->
+<div class="modal-overlay" id="dataStoreModalOverlay">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-header">
+      <h3>Raw Data Store</h3>
+      <button class="modal-close" id="dataStoreModalClose">&#10005;</button>
+    </div>
+    <div class="modal-body" style="padding:20px">
+      <div style="margin-bottom:18px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <label style="font-size:13px;color:var(--text-dim);white-space:nowrap">Upload CSV</label>
+          <input type="file" id="dataStoreFileInput" accept=".csv" multiple style="flex:1;font-size:13px;color:var(--text)">
+        </div>
+        <div id="dataStoreUploadInfo" style="font-size:12px;color:var(--text-dim);margin-bottom:10px"></div>
+        <button class="btn btn-primary" id="dataStoreUploadBtn" disabled style="width:100%">Upload Selected Files</button>
+      </div>
+      <hr style="border:none;border-top:1px solid var(--border);margin:16px 0">
+      <div style="font-size:13px;color:var(--text-dim);margin-bottom:10px">Stored CSV Files</div>
+      <div id="dataStoreList">
+        <div style="text-align:center;padding:20px;color:var(--text-dim)">Loading...</div>
       </div>
     </div>
   </div>
@@ -3164,9 +3190,10 @@ document.getElementById('btnSaveReport').addEventListener('click', () => {
   fetch('/api/reports').catch(() => {});
 });
 
-// Warm up serverless function on page load and keep warm every 5 minutes
+// Warm up serverless functions on page load and keep warm every 5 minutes
 fetch('/api/reports').catch(() => {});
-setInterval(() => fetch('/api/reports').catch(() => {}), 5 * 60 * 1000);
+fetch('/api/csv-store').catch(() => {});
+setInterval(() => { fetch('/api/reports').catch(() => {}); fetch('/api/csv-store').catch(() => {}); }, 5 * 60 * 1000);
 document.querySelectorAll('input[name="saveScope"]').forEach(r => r.addEventListener('change', updateSaveSizeInfo));
 document.getElementById('saveModalClose').addEventListener('click', () => saveModalOverlay.classList.remove('active'));
 document.getElementById('saveModalCancel').addEventListener('click', () => saveModalOverlay.classList.remove('active'));
@@ -3462,6 +3489,174 @@ async function deleteReport(id) {
     const resp = await fetch(`/api/reports/${id}`, { method: 'DELETE' });
     if (resp.ok) {
       document.getElementById('btnLoadReport').click(); // Refresh list
+    } else {
+      const data = await resp.json();
+      alert('Error: ' + (data.error || 'Could not delete'));
+    }
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+
+// =============================================
+// DATA STORE - CSV File Storage
+// =============================================
+const dataStoreOverlay = document.getElementById('dataStoreModalOverlay');
+const dataStoreFileInput = document.getElementById('dataStoreFileInput');
+const dataStoreUploadBtn = document.getElementById('dataStoreUploadBtn');
+const dataStoreUploadInfo = document.getElementById('dataStoreUploadInfo');
+
+document.getElementById('btnDataStore').addEventListener('click', () => {
+  dataStoreOverlay.classList.add('active');
+  dataStoreFileInput.value = '';
+  dataStoreUploadBtn.disabled = true;
+  dataStoreUploadInfo.textContent = '';
+  loadDataStoreList();
+});
+
+document.getElementById('dataStoreModalClose').addEventListener('click', () => dataStoreOverlay.classList.remove('active'));
+dataStoreOverlay.addEventListener('click', e => { if (e.target === dataStoreOverlay) dataStoreOverlay.classList.remove('active'); });
+
+dataStoreFileInput.addEventListener('change', () => {
+  const files = dataStoreFileInput.files;
+  if (files.length === 0) {
+    dataStoreUploadBtn.disabled = true;
+    dataStoreUploadInfo.textContent = '';
+    return;
+  }
+  const totalSize = Array.from(files).reduce((s, f) => s + f.size, 0);
+  dataStoreUploadInfo.textContent = `${files.length} file${files.length > 1 ? 's' : ''} selected (${(totalSize / 1024 / 1024).toFixed(2)} MB total)`;
+  dataStoreUploadBtn.disabled = false;
+});
+
+dataStoreUploadBtn.addEventListener('click', async () => {
+  const files = dataStoreFileInput.files;
+  if (files.length === 0) return;
+
+  dataStoreUploadBtn.disabled = true;
+  dataStoreUploadBtn.textContent = 'Uploading...';
+
+  let uploaded = 0;
+  let errors = [];
+
+  for (const file of files) {
+    try {
+      const text = await file.text();
+      const blob = new Blob([text]);
+      const stream = blob.stream().pipeThrough(new CompressionStream('gzip'));
+      const compressed = await new Response(stream).arrayBuffer();
+      const b64 = arrayBufferToBase64(compressed);
+
+      const compressedMB = (b64.length / 1024 / 1024).toFixed(2);
+      if (b64.length > 10 * 1024 * 1024) {
+        errors.push(`${file.name}: compressed size ${compressedMB} MB exceeds 10 MB limit`);
+        continue;
+      }
+
+      dataStoreUploadBtn.textContent = `Uploading ${uploaded + 1}/${files.length}...`;
+
+      const resp = await fetch('/api/csv-store', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: file.name,
+          data_gz: b64,
+          file_size: text.length
+        })
+      });
+
+      if (!resp.ok) {
+        const data = await resp.json();
+        errors.push(`${file.name}: ${data.error || 'Upload failed'}`);
+      } else {
+        uploaded++;
+      }
+    } catch (err) {
+      errors.push(`${file.name}: ${err.message}`);
+    }
+  }
+
+  dataStoreUploadBtn.textContent = 'Upload Selected Files';
+  dataStoreUploadBtn.disabled = false;
+  dataStoreFileInput.value = '';
+  dataStoreUploadInfo.textContent = '';
+
+  if (errors.length > 0) {
+    alert(`Uploaded ${uploaded}/${files.length} files.\nErrors:\n${errors.join('\n')}`);
+  } else {
+    alert(`Uploaded ${uploaded} file${uploaded > 1 ? 's' : ''} successfully.`);
+  }
+
+  loadDataStoreList();
+});
+
+async function loadDataStoreList() {
+  const listEl = document.getElementById('dataStoreList');
+  listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-dim)">Loading...</div>';
+
+  try {
+    const resp = await fetch('/api/csv-store');
+    if (!resp.ok) throw new Error('Failed to fetch');
+    const files = await resp.json();
+
+    if (files.length === 0) {
+      listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-dim)">No CSV files stored yet. Upload files above.</div>';
+      return;
+    }
+
+    listEl.innerHTML = `
+      <table class="data-points-table" style="width:100%">
+        <thead><tr><th>File Name</th><th>Size</th><th>Date Uploaded</th><th></th><th></th></tr></thead>
+        <tbody>
+          ${files.map(f => `<tr>
+            <td style="word-break:break-all">${escapeHtml(f.name)}</td>
+            <td style="white-space:nowrap">${f.file_size ? (f.file_size / 1024 / 1024).toFixed(2) + ' MB' : '-'}</td>
+            <td style="white-space:nowrap">${new Date(f.created_at).toLocaleDateString('en-GB', { day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit' })}</td>
+            <td><button class="btn btn-primary" style="padding:4px 12px;font-size:12px" onclick="downloadStoredCSV(${f.id}, '${escapeHtml(f.name).replace(/'/g, "\\'")}')">Download</button></td>
+            <td><button class="btn btn-danger" style="padding:4px 12px;font-size:12px" onclick="deleteStoredCSV(${f.id})">Delete</button></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+  } catch (err) {
+    listEl.innerHTML = `<div style="text-align:center;padding:20px;color:#f87171">Error loading files: ${err.message}</div>`;
+  }
+}
+
+async function downloadStoredCSV(id, name) {
+  try {
+    const resp = await fetch(`/api/csv-store/${id}`);
+    if (!resp.ok) throw new Error('Failed to fetch file');
+    const file = await resp.json();
+
+    // Decompress the gzipped base64 data
+    const binary = atob(file.compressed_data);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+    const text = await new Response(stream).text();
+
+    // Download as file
+    const blob = new Blob([text], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name || file.name || 'download.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    alert('Error downloading file: ' + err.message);
+  }
+}
+
+async function deleteStoredCSV(id) {
+  if (!confirm('Delete this CSV file permanently?')) return;
+
+  try {
+    const resp = await fetch(`/api/csv-store/${id}`, { method: 'DELETE' });
+    if (resp.ok) {
+      loadDataStoreList();
     } else {
       const data = await resp.json();
       alert('Error: ' + (data.error || 'Could not delete'));
