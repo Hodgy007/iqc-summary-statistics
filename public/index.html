@@ -1938,13 +1938,16 @@ function renderStats() {
   let minDate = 'N/A';
   let maxDate = 'N/A';
 
-  if (processedData.length > 0) {
-    const dateRange = processedData.reduce((acc, r) => {
-      if (r.date) {
-        const t = parseDate(r.date).getTime();
+  // Use rawData for date range so it reflects all uploaded data, not just the filtered view
+  const dateSource = rawData.length > 0 ? rawData : processedData;
+  if (dateSource.length > 0) {
+    const dateRange = dateSource.reduce((acc, r) => {
+      const ds = r.date || r.dt;
+      if (ds) {
+        const t = parseDate(ds).getTime();
         if (!t) return acc;
-        if (!acc.minT || t < acc.minT) { acc.minT = t; acc.min = r.date; }
-        if (!acc.maxT || t > acc.maxT) { acc.maxT = t; acc.max = r.date; }
+        if (!acc.minT || t < acc.minT) { acc.minT = t; acc.min = ds; }
+        if (!acc.maxT || t > acc.maxT) { acc.maxT = t; acc.max = ds; }
       }
       return acc;
     }, { minT: 0, maxT: 0, min: '', max: '' });
