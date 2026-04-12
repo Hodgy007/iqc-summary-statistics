@@ -2737,48 +2737,42 @@ document.querySelectorAll('.tab').forEach(tab => {
 document.getElementById('filterAnalyte').addEventListener('change', renderResultsTable);
 document.getElementById('filterSearch').addEventListener('input', renderResultsTable);
 document.getElementById('filterCV').addEventListener('change', renderResultsTable);
-document.getElementById('filterStatus').addEventListener('change', () => {
-  const status = document.getElementById('filterStatus').value;
-  const excludeEval = document.getElementById('filterExcludeEval').checked;
-  if (status === 'all') {
-    // Re-include rejected
-    let all = rawData.filter(row => {
-      if (EXCLUDED_PROTOCOLS.has(row.protocol)) return false;
-      if (excludeEval && row.protocol.toLowerCase().includes('eval')) return false;
-      return true;
-    }).map(row => {
-      const mapped = INSTRUMENTS_MAP[row.instrument];
-      return { ...row, instrument: mapped || row.instrument };
-    }).map(row => {
-      if (LEVEL_OVERRIDE_PROTOCOLS.has(row.protocol.trim())) return { ...row, level: '4' };
-      return row;
-    }).filter(r => ['AU/DxI-1','AU/DxI-2','AU/DxI-3','AU/DxI-4'].includes(r.instrument));
-    processedData = all;
-  } else if (status === 'rejected') {
-    let all = rawData.filter(row => {
-      if (EXCLUDED_PROTOCOLS.has(row.protocol)) return false;
-      if (excludeEval && row.protocol.toLowerCase().includes('eval')) return false;
-      return row.status === 'Manually rejected';
-    }).map(row => {
-      const mapped = INSTRUMENTS_MAP[row.instrument];
-      return { ...row, instrument: mapped || row.instrument };
-    }).filter(r => ['AU/DxI-1','AU/DxI-2','AU/DxI-3','AU/DxI-4'].includes(r.instrument));
-    processedData = all;
-  } else {
-    processedData = processData(rawData);
-  }
-  resultsData = buildResults(processedData);
-  renderStats();
-  renderResultsTable();
-  renderRawData();
-});
+document.getElementById('filterStatus').addEventListener('change', applyFilters);
 function applyFilters() {
   const prot = document.getElementById('filterProtocol').value;
   const dateFrom = document.getElementById('filterDateFrom').value;
   const dateTo = document.getElementById('filterDateTo').value;
+  const status = document.getElementById('filterStatus').value;
+  const excludeEval = document.getElementById('filterExcludeEval').checked;
 
-  let base = processData(rawData);
-  if (prot !== 'all') base = base.filter(r => r.protocol === prot);
+  // Build base data respecting eval toggle and protocol exclusions
+  const knownInst = new Set(['AU/DxI-1', 'AU/DxI-2', 'AU/DxI-3', 'AU/DxI-4']);
+  let base = rawData.filter(row => {
+    if (EXCLUDED_PROTOCOLS.has(row.protocol)) return false;
+    if (excludeEval && row.protocol.toLowerCase().includes('eval')) return false;
+    if (status === 'accepted' && (row.status === 'Manually rejected' || row.status === 'Rerun requested')) return false;
+    if (status === 'rejected' && row.status !== 'Manually rejected') return false;
+    return true;
+  }).map(row => {
+    const mapped = INSTRUMENTS_MAP[row.instrument];
+    return { ...row, instrument: mapped || row.instrument };
+  }).map(row => {
+    if (LEVEL_OVERRIDE_PROTOCOLS.has(row.protocol.trim()) || (row.sampleId && row.sampleId.includes('TPP')) || (row.sampleId && row.sampleId.includes('HBQC'))) {
+      return { ...row, level: '4' };
+    }
+    return row;
+  }).filter(r => knownInst.has(r.instrument));
+
+  // Repopulate protocol dropdown with current data
+  const protocols = [...new Set(base.map(r => r.protocol))].sort();
+  const protSelect = document.getElementById('filterProtocol');
+  const currentProt = protSelect.value;
+  protSelect.innerHTML = '<option value="all">All Protocols</option>' +
+    protocols.map(p => `<option value="${escapeHtml(p)}"${p === currentProt ? ' selected' : ''}>${escapeHtml(p)}</option>`).join('');
+
+  if (currentProt !== 'all' && protocols.includes(currentProt)) {
+    base = base.filter(r => r.protocol === currentProt);
+  }
 
   if (dateFrom) {
     const from = new Date(dateFrom);
