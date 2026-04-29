@@ -555,28 +555,76 @@
     .insights-content p { margin: 8px 0 12px; color: var(--text); }
     .insights-content ul { margin: 8px 0 12px; padding-left: 20px; }
     .insights-content li { margin: 4px 0; }
+    .insights-table-wrap {
+      overflow-x: auto;
+      margin: 8px 0 18px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(15, 23, 42, 0.35);
+    }
     .insights-content table {
       width: 100%;
-      border-collapse: collapse;
-      margin: 8px 0 16px;
+      min-width: 900px;
+      border-collapse: separate;
+      border-spacing: 0;
+      margin: 0;
       font-size: 12px;
-      table-layout: auto;
+      table-layout: fixed;
     }
+    .insights-table-priority { min-width: 1160px; }
+    .insights-table-low-count { min-width: 880px; }
     .insights-content th {
       background: var(--bg);
       color: var(--text);
       font-weight: 600;
       text-align: center;
-      padding: 7px 8px;
+      padding: 9px 10px;
       border-bottom: 1px solid var(--border);
+      white-space: nowrap;
     }
     .insights-content td {
       vertical-align: top;
-      padding: 7px 8px;
+      padding: 9px 10px;
       border-bottom: 1px solid rgba(71,85,105,0.35);
       color: var(--text);
       text-align: left;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
     }
+    .insights-content tbody tr:nth-child(even) td { background: rgba(15, 23, 42, 0.28); }
+    .insights-content tbody tr:hover td { background: rgba(59, 130, 246, 0.08); }
+    .insights-content tbody tr:last-child td { border-bottom: none; }
+    .insights-content .col-priority,
+    .insights-content .col-analyte,
+    .insights-content .col-level,
+    .insights-content .col-count {
+      text-align: center;
+      white-space: nowrap;
+    }
+    .insights-content .col-priority { width: 86px; }
+    .insights-content .col-analyte { width: 110px; font-weight: 600; }
+    .insights-content .col-level { width: 86px; }
+    .insights-content .col-count { width: 72px; }
+    .insights-table-priority .col-evidence { width: 28%; }
+    .insights-table-priority .col-risk { width: 22%; }
+    .insights-table-priority .col-recommended-action { width: 26%; }
+    .insights-table-low-count .col-why-it-matters { width: 34%; }
+    .insights-table-low-count .col-action { width: 34%; }
+    .insights-table-instrument-variation .col-instruments-affected { width: 20%; }
+    .insights-table-instrument-variation .col-evidence { width: 32%; }
+    .insights-table-instrument-variation .col-action { width: 26%; }
+    .priority-badge {
+      display: inline-block;
+      min-width: 54px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      text-align: center;
+    }
+    .priority-high { background: rgba(239,68,68,0.18); color: #fca5a5; }
+    .priority-medium { background: rgba(245,158,11,0.18); color: #fcd34d; }
+    .priority-low { background: rgba(34,197,94,0.16); color: #86efac; }
 
     /* Multi-select analyte filter */
     .multi-select { position: relative; }
@@ -4090,6 +4138,28 @@ function formatInsightInline(text) {
   return escapeHtml(text).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
 }
 
+function slugInsightHeader(header) {
+  return header.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+function getInsightTableKind(headers) {
+  const headerText = headers.join('|').toLowerCase();
+  if (headerText.includes('priority|analyte|level|evidence|risk')) return 'priority';
+  if (headerText.includes('count|why it matters')) return 'low-count';
+  if (headerText.includes('instruments affected')) return 'instrument-variation';
+  return 'generic';
+}
+
+function formatInsightCell(value, header) {
+  const cleanValue = value || '';
+  if (header.toLowerCase() === 'priority') {
+    const priority = cleanValue.toLowerCase();
+    const cls = ['high', 'medium', 'low'].includes(priority) ? ` priority-${priority}` : '';
+    return `<span class="priority-badge${cls}">${formatInsightInline(cleanValue)}</span>`;
+  }
+  return formatInsightInline(cleanValue);
+}
+
 function renderInsightMarkdown(text) {
   insightsContent.classList.remove('streaming');
   const lines = text.replace(/\r\n/g, '\n').split('\n');
@@ -4109,15 +4179,21 @@ function renderInsightMarkdown(text) {
 
     if (trimmed.startsWith('|') && i + 1 < lines.length && isMarkdownTableSeparator(lines[i + 1])) {
       const headers = splitMarkdownTableRow(trimmed);
+      const tableKind = getInsightTableKind(headers);
       const rows = [];
       i += 2;
       while (i < lines.length && lines[i].trim().startsWith('|')) {
         rows.push(splitMarkdownTableRow(lines[i]));
         i++;
       }
-      html.push('<table><thead><tr>' + headers.map(h => `<th>${formatInsightInline(h)}</th>`).join('') + '</tr></thead><tbody>');
-      html.push(rows.map(row => '<tr>' + headers.map((_, idx) => `<td>${formatInsightInline(row[idx] || '')}</td>`).join('') + '</tr>').join(''));
-      html.push('</tbody></table>');
+      html.push(`<div class="insights-table-wrap"><table class="insights-table insights-table-${tableKind}"><thead><tr>` +
+        headers.map(h => `<th class="col-${slugInsightHeader(h)}">${formatInsightInline(h)}</th>`).join('') +
+        '</tr></thead><tbody>');
+      html.push(rows.map(row => '<tr>' + headers.map((header, idx) => {
+        const cls = `col-${slugInsightHeader(header)}`;
+        return `<td class="${cls}">${formatInsightCell(row[idx], header)}</td>`;
+      }).join('') + '</tr>').join(''));
+      html.push('</tbody></table></div>');
       continue;
     }
 

@@ -151,6 +151,9 @@ Rules for the Priority findings table:
 - Include the highest-risk rows first.
 - Use Priority values High, Medium, or Low.
 - Keep each table cell concise.
+- Evidence cells: one compact measurement phrase only.
+- Risk cells: maximum 8 words.
+- Recommended action cells: maximum 10 words.
 - Include no more than 12 rows.
 - If there are no material concerns, include one row saying Low | All reviewed | - | No major concern identified | Routine monitoring | Continue routine review.
 
@@ -168,6 +171,7 @@ Include no more than 10 rows.
 Use short bullet points only.
 
 Do not use long prose blocks outside the executive summary. Do not include code fences.
+Do not use semicolon-separated mini-paragraphs inside table cells.
 Do not include a report title, period line, platforms line, horizontal rules, numbered headings, subsection headings, or appendix.
 Stop immediately after the Action checklist.
 Do not write a disclaimer; the application appends the approved disclaimer automatically.
