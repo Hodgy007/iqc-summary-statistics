@@ -197,6 +197,13 @@
     .filter-group { display: flex; flex-direction: column; gap: 4px; }
     .filter-group label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
 
+    .toggle-switch { position: relative; display: inline-block; width: 36px; height: 20px; flex-shrink: 0; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; cursor: pointer; inset: 0; background: var(--border); border-radius: 20px; transition: 0.2s; }
+    .toggle-slider::before { content: ''; position: absolute; height: 14px; width: 14px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: 0.2s; }
+    .toggle-switch input:checked + .toggle-slider { background: var(--accent); }
+    .toggle-switch input:checked + .toggle-slider::before { transform: translateX(16px); }
+
     select, input[type="text"] {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -1015,9 +1022,12 @@
           </select>
         </div>
         <div class="filter-group">
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap">
-            <input type="checkbox" id="filterExcludeEval" checked style="accent-color:var(--accent)">
-            Exclude Evaluation Protocols
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;white-space:nowrap">
+            <span class="toggle-switch">
+              <input type="checkbox" id="filterExcludeEval" checked>
+              <span class="toggle-slider"></span>
+            </span>
+            Exclude Evaluation
           </label>
         </div>
         <div class="filter-group">
@@ -1095,6 +1105,25 @@
       <button class="btn" id="btnBackFromSettings">Back to Dashboard</button>
     </div>
     <div class="settings-section">
+      <h3>Change Password</h3>
+      <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-top:8px">
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label style="font-size:11px;color:var(--text-dim)">Current Password</label>
+          <input type="password" id="cpCurrent" placeholder="Current password" style="padding:8px 10px;font-size:13px;width:180px;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label style="font-size:11px;color:var(--text-dim)">New Password</label>
+          <input type="password" id="cpNew" placeholder="Min 8 characters" style="padding:8px 10px;font-size:13px;width:180px;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label style="font-size:11px;color:var(--text-dim)">Confirm New</label>
+          <input type="password" id="cpConfirm" placeholder="Confirm" style="padding:8px 10px;font-size:13px;width:180px;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px">
+        </div>
+        <button class="btn btn-primary" id="btnChangePassword" style="height:36px">Update Password</button>
+      </div>
+      <div id="cpMessage" style="margin-top:8px;font-size:13px"></div>
+    </div>
+    <div class="settings-section" style="margin-top:24px">
       <h3>Registered Users</h3>
       <div id="usersList">Loading...</div>
     </div>
@@ -1175,7 +1204,7 @@
       <button class="modal-close" id="dataStoreModalClose">&#10005;</button>
     </div>
     <div class="modal-body" style="padding:20px">
-      <div style="margin-bottom:18px">
+      <div id="dataStoreUploadSection" style="margin-bottom:18px">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
           <label style="font-size:13px;color:var(--text-dim);white-space:nowrap">Upload CSV</label>
           <input type="file" id="dataStoreFileInput" accept=".csv" multiple style="flex:1;font-size:13px;color:var(--text)">
@@ -1304,7 +1333,15 @@ function applyPermissions() {
     const btnProcess = document.getElementById('btnProcess');
     if (dropZone) dropZone.style.display = 'none';
     if (btnProcess) btnProcess.style.display = 'none';
+    // Hide Data Store upload section (view-only users cannot upload)
+    const dsUpload = document.getElementById('dataStoreUploadSection');
+    if (dsUpload) dsUpload.style.display = 'none';
   }
+}
+
+function handleSessionExpired() {
+  alert('Your session has expired. Please log in again.');
+  showAuthScreen();
 }
 
 // Auth tabs
@@ -1482,6 +1519,35 @@ async function updateUserPermission(userId, permission) {
     loadUsers();
   } catch (err) { alert('Error: ' + err.message); }
 }
+
+// Change own password
+document.getElementById('btnChangePassword').addEventListener('click', async () => {
+  const msgEl = document.getElementById('cpMessage');
+  const current = document.getElementById('cpCurrent').value;
+  const newPw = document.getElementById('cpNew').value;
+  const confirm = document.getElementById('cpConfirm').value;
+
+  if (!current || !newPw || !confirm) { msgEl.innerHTML = '<span style="color:#ef4444">All fields required</span>'; return; }
+  if (newPw.length < 8) { msgEl.innerHTML = '<span style="color:#ef4444">New password must be at least 8 characters</span>'; return; }
+  if (newPw !== confirm) { msgEl.innerHTML = '<span style="color:#ef4444">New passwords do not match</span>'; return; }
+
+  try {
+    const resp = await fetch('/api/auth/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword: current, newPassword: newPw })
+    });
+    const data = await resp.json();
+    if (resp.ok) {
+      msgEl.innerHTML = '<span style="color:#22c55e">Password updated successfully</span>';
+      document.getElementById('cpCurrent').value = '';
+      document.getElementById('cpNew').value = '';
+      document.getElementById('cpConfirm').value = '';
+    } else {
+      msgEl.innerHTML = `<span style="color:#ef4444">${escapeHtml(data.error)}</span>`;
+    }
+  } catch (err) { msgEl.innerHTML = `<span style="color:#ef4444">Error: ${escapeHtml(err.message)}</span>`; }
+});
 
 async function resetUserPassword(userId, email) {
   const newPassword = prompt(`Enter new password for ${email}\n(minimum 8 characters):`);
@@ -1875,7 +1941,7 @@ function processData(data) {
   const excludeEval = document.getElementById('filterExcludeEval')?.checked !== false;
   let filtered = data.filter(row => {
     if (EXCLUDED_PROTOCOLS.has(row.protocol)) return false;
-    if (excludeEval && row.protocol.toLowerCase().includes('eval')) return false;
+    if (excludeEval && row.protocol.toLowerCase().includes('evaluation')) return false;
     return true;
   });
 
@@ -2113,10 +2179,12 @@ function populateChartFilters() {
   const levels = [...new Set(processedData.map(r => r.level))].sort();
 
   const paramSelect = document.getElementById('chartAnalyte');
-  paramSelect.innerHTML = params.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
+  const currentParam = paramSelect.value;
+  paramSelect.innerHTML = params.map(p => `<option value="${escapeHtml(p)}"${p === currentParam ? ' selected' : ''}>${escapeHtml(p)}</option>`).join('');
 
   const levelSelect = document.getElementById('chartLevel');
-  levelSelect.innerHTML = levels.map(l => `<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join('');
+  const currentLevel = levelSelect.value;
+  levelSelect.innerHTML = levels.map(l => `<option value="${escapeHtml(l)}"${l === currentLevel ? ' selected' : ''}>${escapeHtml(l)}</option>`).join('');
 }
 
 function getSelectedInstruments() {
@@ -2315,7 +2383,7 @@ function renderCVChart() {
 
 function parseDate(dateStr) {
   if (!dateStr) return new Date(0);
-  const parts = dateStr.split(' ')[0].split('/');
+  const parts = dateStr.split(' ')[0].split(/[\/\-]/);
   if (parts.length === 3) {
     return new Date(parts[2], parts[1] - 1, parts[0]);
   }
@@ -2325,7 +2393,7 @@ function parseDate(dateStr) {
 function formatDate(dateStr) {
   if (!dateStr) return '';
   const [datePart, timePart] = dateStr.trim().split(' ');
-  const dp = datePart.split('/');
+  const dp = datePart.split(/[\/\-]/);
   if (dp.length === 3) {
     const dd = dp[0].padStart(2, '0');
     const mm = dp[1].padStart(2, '0');
@@ -2799,7 +2867,7 @@ function applyFilters() {
   const knownInst = new Set(['AU/DxI-1', 'AU/DxI-2', 'AU/DxI-3', 'AU/DxI-4']);
   let base = rawData.filter(row => {
     if (EXCLUDED_PROTOCOLS.has(row.protocol)) return false;
-    if (excludeEval && row.protocol.toLowerCase().includes('eval')) return false;
+    if (excludeEval && row.protocol.toLowerCase().includes('evaluation')) return false;
     if (status === 'accepted' && (row.status === 'Manually rejected' || row.status === 'Rerun requested')) return false;
     if (status === 'rejected' && row.status !== 'Manually rejected') return false;
     return true;
@@ -2848,9 +2916,18 @@ function applyFilters() {
 
   processedData = base;
   resultsData = buildResults(processedData);
+
+  // Refresh analyte filter to only show analytes that have data
+  const currentAnalyte = document.getElementById('filterAnalyte').value;
+  const availableAnalytes = [...new Set(resultsData.map(r => r.parameter))].sort();
+  document.getElementById('filterAnalyte').innerHTML =
+    '<option value="all">All Analytes</option>' +
+    availableAnalytes.map(a => `<option value="${escapeHtml(a)}"${a === currentAnalyte ? ' selected' : ''}>${escapeHtml(a)}</option>`).join('');
+
   renderStats();
   renderResultsTable();
   renderRawData();
+  populateChartFilters();
 }
 
 document.getElementById('filterProtocol').addEventListener('change', applyFilters);
@@ -3590,7 +3667,14 @@ dataStoreUploadBtn.addEventListener('click', async () => {
       });
 
       if (!resp.ok) {
-        const data = await resp.json();
+        if (resp.status === 401) {
+          dataStoreUploadBtn.textContent = 'Upload Selected Files';
+          dataStoreUploadBtn.disabled = false;
+          dataStoreOverlay.classList.remove('active');
+          handleSessionExpired();
+          return;
+        }
+        const data = await resp.json().catch(() => ({}));
         errors.push(`${file.name}: ${data.error || 'Upload failed'}`);
       } else {
         uploaded++;
@@ -3620,6 +3704,7 @@ async function loadDataStoreList() {
 
   try {
     const resp = await fetch('/api/csv-store');
+    if (resp.status === 401) { handleSessionExpired(); return; }
     if (!resp.ok) throw new Error('Failed to fetch');
     const files = await resp.json();
 
