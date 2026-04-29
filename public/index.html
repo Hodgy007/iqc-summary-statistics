@@ -523,6 +523,76 @@
     .modal-body th, .modal-body td { border-bottom: 1px solid var(--border); }
     .modal-body code { background: var(--bg); padding: 2px 6px; border-radius: 3px; font-size: 12px; }
 
+    /* Multi-select analyte filter */
+    .multi-select { position: relative; }
+    .multi-select-btn {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--text);
+      white-space: nowrap;
+      min-width: 160px;
+      max-width: 220px;
+    }
+    .multi-select-btn:hover { background: var(--border); }
+    .multi-select-btn span:first-child { overflow: hidden; text-overflow: ellipsis; }
+    .multi-select-dropdown {
+      display: none;
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      z-index: 500;
+      min-width: 230px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      flex-direction: column;
+    }
+    .multi-select-dropdown.open { display: flex; }
+    .multi-select-search-wrap { padding: 8px; border-bottom: 1px solid var(--border); }
+    .multi-select-search-wrap input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      padding: 4px 8px;
+      font-size: 12px;
+      outline: none;
+    }
+    .multi-select-all-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+      user-select: none;
+    }
+    .multi-select-all-row:hover { background: var(--surface2); }
+    .multi-select-list { overflow-y: auto; max-height: 240px; }
+    .multi-select-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .multi-select-item:hover { background: var(--surface2); }
+    .multi-select-item input[type=checkbox], .multi-select-all-row input[type=checkbox] { cursor: pointer; }
+
     .calc-section {
       margin-bottom: 16px;
     }
@@ -998,9 +1068,21 @@
       <div class="filters">
         <div class="filter-group">
           <label>Analyte</label>
-          <select id="filterAnalyte">
-            <option value="all">All Analytes</option>
-          </select>
+          <div class="multi-select" id="analyteMultiSelect">
+            <button class="multi-select-btn" id="analyteSelectBtn" type="button">
+              <span id="analyteSelectLabel">All Analytes</span>
+              <span>▾</span>
+            </button>
+            <div class="multi-select-dropdown" id="analyteDropdown">
+              <div class="multi-select-search-wrap">
+                <input type="text" id="analyteDropdownSearch" placeholder="Search analytes…">
+              </div>
+              <label class="multi-select-all-row">
+                <input type="checkbox" id="analyteSelectAll" checked> All Analytes
+              </label>
+              <div class="multi-select-list" id="analyteCheckboxList"></div>
+            </div>
+          </div>
         </div>
         <div class="filter-group">
           <label>Search Analyte</label>
@@ -1911,6 +1993,7 @@ let rawData = [];
 let processedData = [];
 let resultsData = [];
 let uploadedFiles = [];
+let selectedAnalytes = new Set(); // empty = all selected
 let ljChartInstance = null;
 let cvChartInstance = null;
 let rawPage = 0;
@@ -2074,10 +2157,9 @@ function renderStats() {
 function renderResultsTable() {
   const search = document.getElementById('filterSearch').value.toLowerCase();
   const cvFilter = document.getElementById('filterCV').value;
-  const analyteFilter = document.getElementById('filterAnalyte').value;
 
   let data = resultsData;
-  if (analyteFilter !== 'all') data = data.filter(r => r.parameter === analyteFilter);
+  if (selectedAnalytes.size > 0) data = data.filter(r => selectedAnalytes.has(r.parameter));
   if (search) data = data.filter(r => r.parameter.toLowerCase().includes(search));
   if (cvFilter === 'high') data = data.filter(r => r.combined.cv > 10);
   if (cvFilter === 'warn') data = data.filter(r => r.combined.cv > 5);
@@ -2328,7 +2410,40 @@ function renderLJChart() {
           grid: { color: 'rgba(71,85,105,0.3)' }
         },
         y: {
-          ticks: { color: '#94a3b8' },
+          afterBuildTicks: scale => {
+            if (stats.sd === 0) return;
+            const { mean, sd } = stats;
+            scale.ticks = [
+              { value: mean - 3 * sd },
+              { value: mean - 2 * sd },
+              { value: mean - sd },
+              { value: mean },
+              { value: mean + sd },
+              { value: mean + 2 * sd },
+              { value: mean + 3 * sd },
+            ];
+          },
+          ticks: {
+            color: '#94a3b8',
+            callback: function(value) {
+              if (stats.sd === 0) return value.toFixed(2);
+              const { mean, sd } = stats;
+              const eps = sd * 0.001;
+              const sdLabels = [
+                [mean - 3 * sd, '-3SD'],
+                [mean - 2 * sd, '-2SD'],
+                [mean - sd, '-1SD'],
+                [mean, 'Mean'],
+                [mean + sd, '+1SD'],
+                [mean + 2 * sd, '+2SD'],
+                [mean + 3 * sd, '+3SD'],
+              ];
+              for (const [ref, label] of sdLabels) {
+                if (Math.abs(value - ref) < eps) return [label, ref.toFixed(2)];
+              }
+              return value.toFixed(2);
+            }
+          },
           grid: { color: 'rgba(71,85,105,0.3)' }
         }
       }
@@ -2819,9 +2934,7 @@ async function processFiles() {
 
     // Populate analyte filter
     const analytes = [...new Set(processedData.map(r => r.parameter))].sort();
-    document.getElementById('filterAnalyte').innerHTML =
-      '<option value="all">All Analytes</option>' +
-      analytes.map(a => `<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('');
+    populateAnalyteFilter(analytes, false);
 
     // Populate date filters with unique dates from data
     const uniqueDates = [...new Set(processedData.map(r => {
@@ -2879,8 +2992,89 @@ document.querySelectorAll('.tab').forEach(tab => {
   });
 });
 
+// =============================================
+// ANALYTE MULTI-SELECT
+// =============================================
+function populateAnalyteFilter(analytes, preserveSelection) {
+  const list = document.getElementById('analyteCheckboxList');
+  if (!preserveSelection) selectedAnalytes = new Set();
+
+  // Remove analytes no longer available when preserving selection
+  if (preserveSelection && selectedAnalytes.size > 0) {
+    const available = new Set(analytes);
+    for (const a of [...selectedAnalytes]) {
+      if (!available.has(a)) selectedAnalytes.delete(a);
+    }
+  }
+
+  list.innerHTML = analytes.map(a => `
+    <label class="multi-select-item">
+      <input type="checkbox" class="analyte-cb" value="${escapeHtml(a)}"${selectedAnalytes.size === 0 || selectedAnalytes.has(a) ? ' checked' : ''}>
+      ${escapeHtml(a)}
+    </label>`).join('');
+
+  list.querySelectorAll('.analyte-cb').forEach(cb => {
+    cb.addEventListener('change', onAnalyteCBChange);
+  });
+  updateAnalyteSelectAll();
+  updateAnalyteLabel();
+}
+
+function onAnalyteCBChange() {
+  const allCbs = [...document.querySelectorAll('.analyte-cb')];
+  const checked = allCbs.filter(cb => cb.checked).map(cb => cb.value);
+  selectedAnalytes = checked.length === allCbs.length ? new Set() : new Set(checked);
+  updateAnalyteSelectAll();
+  updateAnalyteLabel();
+  renderResultsTable();
+}
+
+function updateAnalyteSelectAll() {
+  const allCbs = [...document.querySelectorAll('.analyte-cb')];
+  const checkedCount = allCbs.filter(cb => cb.checked).length;
+  const selectAllCb = document.getElementById('analyteSelectAll');
+  selectAllCb.indeterminate = checkedCount > 0 && checkedCount < allCbs.length;
+  selectAllCb.checked = checkedCount === allCbs.length;
+}
+
+function updateAnalyteLabel() {
+  const label = document.getElementById('analyteSelectLabel');
+  if (selectedAnalytes.size === 0) label.textContent = 'All Analytes';
+  else if (selectedAnalytes.size === 1) label.textContent = [...selectedAnalytes][0];
+  else label.textContent = `${selectedAnalytes.size} analytes`;
+}
+
+document.getElementById('analyteSelectBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  document.getElementById('analyteDropdown').classList.toggle('open');
+});
+
+document.addEventListener('click', e => {
+  if (!document.getElementById('analyteMultiSelect').contains(e.target)) {
+    document.getElementById('analyteDropdown').classList.remove('open');
+    document.getElementById('analyteDropdownSearch').value = '';
+    document.querySelectorAll('.analyte-cb').forEach(cb => {
+      cb.closest('.multi-select-item').style.display = '';
+    });
+  }
+});
+
+document.getElementById('analyteSelectAll').addEventListener('change', function() {
+  document.querySelectorAll('.analyte-cb').forEach(cb => { cb.checked = this.checked; });
+  selectedAnalytes = new Set();
+  updateAnalyteLabel();
+  renderResultsTable();
+});
+
+document.getElementById('analyteDropdownSearch').addEventListener('input', function() {
+  const q = this.value.toLowerCase();
+  document.querySelectorAll('.analyte-cb').forEach(cb => {
+    cb.closest('.multi-select-item').style.display =
+      cb.value.toLowerCase().includes(q) ? '' : 'none';
+  });
+});
+
 // Filters
-document.getElementById('filterAnalyte').addEventListener('change', renderResultsTable);
 document.getElementById('filterSearch').addEventListener('input', renderResultsTable);
 document.getElementById('filterCV').addEventListener('change', renderResultsTable);
 document.getElementById('filterStatus').addEventListener('change', applyFilters);
@@ -2946,11 +3140,8 @@ function applyFilters() {
   resultsData = buildResults(processedData);
 
   // Refresh analyte filter to only show analytes that have data
-  const currentAnalyte = document.getElementById('filterAnalyte').value;
   const availableAnalytes = [...new Set(resultsData.map(r => r.parameter))].sort();
-  document.getElementById('filterAnalyte').innerHTML =
-    '<option value="all">All Analytes</option>' +
-    availableAnalytes.map(a => `<option value="${escapeHtml(a)}"${a === currentAnalyte ? ' selected' : ''}>${escapeHtml(a)}</option>`).join('');
+  populateAnalyteFilter(availableAnalytes, true);
 
   renderStats();
   renderResultsTable();
@@ -3245,6 +3436,7 @@ document.getElementById('btnReset').addEventListener('click', () => {
   processedData = [];
   resultsData = [];
   uploadedFiles = [];
+  selectedAnalytes = new Set();
   deletedPointIds.clear();
   document.getElementById('uploadSection').classList.remove('hidden');
   document.getElementById('resultsSection').classList.add('hidden');
@@ -3284,9 +3476,8 @@ function updateSaveSizeInfo() {
   } else {
     const search = document.getElementById('filterSearch').value.toLowerCase();
     const cvFilter = document.getElementById('filterCV').value;
-    const analyteFilter = document.getElementById('filterAnalyte').value;
     resultRows = resultsData.slice();
-    if (analyteFilter !== 'all') resultRows = resultRows.filter(r => r.parameter === analyteFilter);
+    if (selectedAnalytes.size > 0) resultRows = resultRows.filter(r => selectedAnalytes.has(r.parameter));
     if (search) resultRows = resultRows.filter(r => r.parameter.toLowerCase().includes(search));
     if (cvFilter === 'high') resultRows = resultRows.filter(r => r.combined.cv > 10);
     if (cvFilter === 'warn') resultRows = resultRows.filter(r => r.combined.cv > 5);
@@ -3346,9 +3537,8 @@ document.getElementById('saveModalConfirm').addEventListener('click', async () =
   } else {
     const search = document.getElementById('filterSearch').value.toLowerCase();
     const cvFilter = document.getElementById('filterCV').value;
-    const analyteFilter = document.getElementById('filterAnalyte').value;
     saveResults = resultsData.slice();
-    if (analyteFilter !== 'all') saveResults = saveResults.filter(r => r.parameter === analyteFilter);
+    if (selectedAnalytes.size > 0) saveResults = saveResults.filter(r => selectedAnalytes.has(r.parameter));
     if (search) saveResults = saveResults.filter(r => r.parameter.toLowerCase().includes(search));
     if (cvFilter === 'high') saveResults = saveResults.filter(r => r.combined.cv > 10);
     if (cvFilter === 'warn') saveResults = saveResults.filter(r => r.combined.cv > 5);
@@ -3555,9 +3745,7 @@ async function loadReport(id) {
 
     // Populate analyte filter from resultsData
     const analytes = [...new Set(resultsData.map(r => r.parameter))].sort();
-    document.getElementById('filterAnalyte').innerHTML =
-      '<option value="all">All Analytes</option>' +
-      analytes.map(a => `<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('');
+    populateAnalyteFilter(analytes, false);
 
     // Populate chart filters from resultsData
     const chartParams = document.getElementById('chartAnalyte');
