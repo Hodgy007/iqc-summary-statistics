@@ -878,6 +878,7 @@
     <button class="btn btn-primary" id="btnReport" disabled>Create Report (PDF)</button>
     <button class="btn" id="btnExportXLSX" disabled>Export XLSX</button>
     <button class="btn" id="btnExportCSV" disabled>Export CSV</button>
+    <button class="btn" id="btnInsights" disabled style="background:#0d9488;border-color:#0d9488">AI Insights</button>
     <button class="btn btn-danger" id="btnReset" disabled>Clear Data</button>
     <button class="btn" onclick="showDoc('readme')">Docs</button>
     <button class="btn" id="btnLogout">Logout</button>
@@ -1192,6 +1193,20 @@
         <button class="btn" id="saveModalCancel" style="flex:1">Cancel</button>
         <button class="btn btn-primary" id="saveModalConfirm" style="flex:2">Save Report</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- AI Insights Modal -->
+<div class="modal-overlay" id="insightsModalOverlay">
+  <div class="modal" style="max-width:760px;max-height:90vh">
+    <div class="modal-header">
+      <h3>AI Insights</h3>
+      <button class="modal-close" id="insightsModalClose">&#10005;</button>
+    </div>
+    <div class="modal-body" style="padding:20px;overflow-y:auto;max-height:calc(90vh - 60px)">
+      <div id="insightsStatus" style="color:var(--text-dim);font-size:13px;margin-bottom:12px;display:none"></div>
+      <pre id="insightsContent" style="white-space:pre-wrap;font-family:inherit;font-size:13px;line-height:1.6;margin:0"></pre>
     </div>
   </div>
 </div>
@@ -2836,6 +2851,7 @@ async function processFiles() {
     document.getElementById('btnExportXLSX').disabled = false;
     document.getElementById('btnReport').disabled = false;
     document.getElementById('btnSaveReport').disabled = false;
+    document.getElementById('btnInsights').disabled = false;
     document.getElementById('btnReset').disabled = false;
 
     logUserActivity('data_process', `${rawData.length} records, ${resultsData.length} analyte groups`);
@@ -3236,6 +3252,7 @@ document.getElementById('btnReset').addEventListener('click', () => {
   document.getElementById('btnExportXLSX').disabled = true;
   document.getElementById('btnReport').disabled = true;
   document.getElementById('btnSaveReport').disabled = true;
+  document.getElementById('btnInsights').disabled = true;
   document.getElementById('btnReset').disabled = true;
   document.getElementById('fileList').textContent = '';
   document.getElementById('fileInput').value = '';
@@ -3586,6 +3603,7 @@ async function loadReport(id) {
     document.getElementById('btnExportXLSX').disabled = false;
     document.getElementById('btnReport').disabled = false;
     document.getElementById('btnSaveReport').disabled = false;
+    document.getElementById('btnInsights').disabled = false;
     document.getElementById('btnReset').disabled = false;
 
     loadModalOverlay.classList.remove('active');
@@ -3786,6 +3804,76 @@ async function deleteStoredCSV(id) {
     alert('Error: ' + err.message);
   }
 }
+
+// =============================================
+// AI INSIGHTS
+// =============================================
+const insightsOverlay = document.getElementById('insightsModalOverlay');
+const insightsContent = document.getElementById('insightsContent');
+const insightsStatus = document.getElementById('insightsStatus');
+const btnInsights = document.getElementById('btnInsights');
+
+document.getElementById('insightsModalClose').addEventListener('click', () => {
+  insightsOverlay.classList.remove('active');
+});
+
+insightsOverlay.addEventListener('click', (e) => {
+  if (e.target === insightsOverlay) insightsOverlay.classList.remove('active');
+});
+
+btnInsights.addEventListener('click', async () => {
+  if (resultsData.length === 0) return;
+
+  insightsContent.textContent = '';
+  insightsStatus.textContent = 'Analysing your IQC data…';
+  insightsStatus.style.display = 'block';
+  insightsOverlay.classList.add('active');
+  btnInsights.disabled = true;
+  btnInsights.textContent = 'Generating…';
+
+  // Build date range string from rawData
+  let dateRange = '';
+  if (rawData.length > 0) {
+    const dates = rawData.map(r => parseDate(r.date)).filter(d => d && d.getTime() > 0);
+    if (dates.length > 0) {
+      const min = new Date(Math.min(...dates.map(d => d.getTime())));
+      const max = new Date(Math.max(...dates.map(d => d.getTime())));
+      dateRange = `${min.toLocaleDateString('en-GB')} to ${max.toLocaleDateString('en-GB')}`;
+    }
+  }
+
+  try {
+    const resp = await fetch('/api/insights', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resultsData, dateRange }),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: resp.statusText }));
+      if (resp.status === 401) { handleSessionExpired(); return; }
+      insightsStatus.style.display = 'none';
+      insightsContent.textContent = 'Error: ' + (err.error || 'Failed to get insights');
+      return;
+    }
+
+    insightsStatus.style.display = 'none';
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      insightsContent.textContent += decoder.decode(value, { stream: true });
+    }
+  } catch (err) {
+    insightsStatus.style.display = 'none';
+    insightsContent.textContent = 'Error: ' + err.message;
+  } finally {
+    btnInsights.disabled = false;
+    btnInsights.textContent = 'AI Insights';
+  }
+});
 </script>
 
 </body>
