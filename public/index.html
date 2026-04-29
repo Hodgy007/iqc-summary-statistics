@@ -2381,23 +2381,35 @@ function renderCVChart() {
   });
 }
 
+// Returns [year, month0, day] from a date string part, auto-detecting DD-MM-YYYY vs MM/DD/YYYY.
+// Detection: if first segment > 12 → DD-MM-YYYY; if second segment > 12 → MM/DD/YYYY;
+// otherwise fall back to separator (dash = UK DD-MM-YYYY, slash = US MM/DD/YYYY).
+function parseDateParts(datePart) {
+  const sep = datePart.includes('/') ? '/' : '-';
+  const p = datePart.split(sep);
+  if (p.length !== 3) return null;
+  const a = parseInt(p[0], 10), b = parseInt(p[1], 10), c = parseInt(p[2], 10);
+  if (a > 12) return [c, b - 1, a];          // DD-MM-YYYY
+  if (b > 12) return [c, a - 1, b];          // MM/DD/YYYY
+  return sep === '-' ? [c, b - 1, a] : [c, a - 1, b]; // ambiguous: use separator
+}
+
 function parseDate(dateStr) {
   if (!dateStr) return new Date(0);
-  const parts = dateStr.split(' ')[0].split(/[\/\-]/);
-  if (parts.length === 3) {
-    return new Date(parts[2], parts[1] - 1, parts[0]);
-  }
+  const parts = parseDateParts(dateStr.split(' ')[0]);
+  if (parts) return new Date(...parts);
   return new Date(dateStr);
 }
 
 function formatDate(dateStr) {
   if (!dateStr) return '';
   const [datePart, timePart] = dateStr.trim().split(' ');
-  const dp = datePart.split(/[\/\-]/);
-  if (dp.length === 3) {
-    const dd = dp[0].padStart(2, '0');
-    const mm = dp[1].padStart(2, '0');
-    const yy = String(dp[2]).slice(-2);
+  const parts = parseDateParts(datePart);
+  if (parts) {
+    const [year, month0, day] = parts;
+    const dd = String(day).padStart(2, '0');
+    const mm = String(month0 + 1).padStart(2, '0');
+    const yy = String(year).slice(-2);
     return timePart ? `${dd}/${mm}/${yy} ${timePart}` : `${dd}/${mm}/${yy}`;
   }
   return dateStr;
