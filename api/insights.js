@@ -23,6 +23,11 @@ function formatStats(stats) {
   return `n=${stats.count}, mean=${formatNum(stats.mean, 2)}, CV=${formatNum(stats.cv)}%`;
 }
 
+function cleanCustomPrompt(prompt) {
+  if (typeof prompt !== 'string') return '';
+  return prompt.replace(/\s+/g, ' ').trim().slice(0, 3000);
+}
+
 function buildInsightsBrief(resultsData, dateRange) {
   const priorityRows = [];
   const lowCountRows = [];
@@ -124,7 +129,7 @@ export default async function handler(req, res) {
   const user = await requireAuth(req, res);
   if (!user) return;
 
-  const { resultsData, dateRange } = req.body;
+  const { resultsData, dateRange, userPrompt: customUserPrompt } = req.body;
   if (!resultsData || !Array.isArray(resultsData) || resultsData.length === 0) {
     return res.status(400).json({ error: 'resultsData required' });
   }
@@ -135,6 +140,7 @@ export default async function handler(req, res) {
   }
 
   const dataSummary = buildInsightsBrief(resultsData, dateRange);
+  const userFocusPrompt = cleanCustomPrompt(customUserPrompt);
 
   const userPrompt = `Please analyse the following IQC (Internal Quality Control) summary statistics from a clinical biochemistry laboratory.
 
@@ -175,6 +181,9 @@ Do not use semicolon-separated mini-paragraphs inside table cells.
 Do not include a report title, period line, platforms line, horizontal rules, numbered headings, subsection headings, or appendix.
 Stop immediately after the Action checklist.
 Do not write a disclaimer; the application appends the approved disclaimer automatically.
+
+User-editable focus prompt:
+${userFocusPrompt || 'Use the default laboratory quality-control focus.'}
 
 ${dataSummary}
 
