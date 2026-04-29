@@ -33,8 +33,6 @@ export default async function handler(req, res) {
   if (!process.env.ANTHROPIC_API_KEY) {
     return res.status(500).json({ error: 'AI insights not configured (missing ANTHROPIC_API_KEY)' });
   }
-  const keyDebug = process.env.ANTHROPIC_API_KEY.trim();
-  console.log('API key debug — length:', keyDebug.length, 'prefix:', keyDebug.slice(0, 14), 'suffix:', keyDebug.slice(-4));
 
   const dataSummary = formatResultsForPrompt(resultsData, dateRange);
 
