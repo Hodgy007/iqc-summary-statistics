@@ -4,6 +4,10 @@ import { requireAuth } from './lib/auth.js';
 const INSTRUMENTS = ['AU/DxI-1', 'AU/DxI-2', 'AU/DxI-3', 'AU/DxI-4'];
 const DEFAULT_MAX_OUTPUT_TOKENS = 8192;
 const MAX_OUTPUT_TOKENS = Number.parseInt(process.env.AI_INSIGHTS_MAX_TOKENS || '', 10) || DEFAULT_MAX_OUTPUT_TOKENS;
+const AI_INSIGHTS_DISCLAIMER = `
+
+## Disclaimer
+These AI-generated insights are provided for guidance only. They are not a substitute for professional laboratory judgement, local quality management procedures, manufacturer guidance, accreditation requirements, or clinical governance review. The laboratory remains responsible for verifying the data, interpreting the findings, deciding whether action is required, and documenting any follow-up. No responsibility is accepted for decisions made solely on the basis of this AI analysis.`;
 
 function formatNum(value, digits = 1) {
   return Number.isFinite(value) ? value.toFixed(digits) : '0.0';
@@ -166,6 +170,7 @@ Use short bullet points only.
 Do not use long prose blocks outside the executive summary. Do not include code fences.
 Do not include a report title, period line, platforms line, horizontal rules, numbered headings, subsection headings, or appendix.
 Stop immediately after the Action checklist.
+Do not write a disclaimer; the application appends the approved disclaimer automatically.
 
 ${dataSummary}
 
@@ -192,6 +197,7 @@ Interpretation guide:
     for await (const chunk of result.textStream) {
       res.write(chunk);
     }
+    res.write(AI_INSIGHTS_DISCLAIMER);
   } catch (err) {
     console.error('Insights error:', err);
     res.write(`\n\n[Error generating insights: ${err.message}]`);
