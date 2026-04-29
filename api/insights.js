@@ -37,16 +37,43 @@ export default async function handler(req, res) {
 
   const dataSummary = formatResultsForPrompt(resultsData, dateRange);
 
-  const userPrompt = `Please analyse the following IQC (Internal Quality Control) summary statistics from a clinical biochemistry laboratory and provide structured insights.
+  const userPrompt = `Please analyse the following IQC (Internal Quality Control) summary statistics from a clinical biochemistry laboratory.
+
+Return Markdown only, using this exact structure:
+
+## Executive summary
+One short paragraph, maximum 4 sentences.
+
+## Priority findings
+Create a Markdown table with exactly these columns:
+| Priority | Analyte | Level | Evidence | Risk | Recommended action |
+
+Rules for the Priority findings table:
+- Include the highest-risk rows first.
+- Use Priority values High, Medium, or Low.
+- Keep each table cell concise.
+- If there are no material concerns, include one row saying Low | All reviewed | - | No major concern identified | Routine monitoring | Continue routine review.
+
+## Low-count statistics
+Create a Markdown table with exactly these columns:
+| Analyte | Level | Count | Why it matters | Action |
+
+## Instrument variation
+Create a Markdown table with exactly these columns:
+| Analyte | Level | Instruments affected | Evidence | Action |
+
+## Action checklist
+Use short bullet points only.
+
+Do not use long prose blocks outside the executive summary. Do not include code fences.
 
 ${dataSummary}
 
-Please cover:
-1. Overall QC performance summary
-2. Analytes with high imprecision (CV% concerns — >5% is generally concerning in clinical chemistry, >10% warrants immediate review)
-3. Between-instrument variation — flag analytes where instruments differ substantially in mean or CV
-4. Analytes with low result counts (n<10) that may give unreliable statistics
-5. Specific, actionable recommendations for the laboratory team`;
+Interpretation guide:
+- CV% >5% is generally concerning in clinical chemistry.
+- CV% >10% warrants immediate review.
+- Low result count means n<10 and may give unreliable statistics.
+- Flag analytes where instruments differ substantially in mean or CV.`;
 
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache');
@@ -55,8 +82,8 @@ Please cover:
 
   try {
     const result = streamText({
-      model: 'anthropic/claude-opus-4-7',
-      system: 'You are a clinical laboratory quality control specialist with expertise in IQC data interpretation for clinical biochemistry analysers. Provide clear, structured, actionable insights focused on analytical quality and patient safety. Use numbered sections and bullet points for clarity.',
+      model: 'anthropic/claude-opus-4.7',
+      system: 'You are a clinical laboratory quality control specialist with expertise in IQC data interpretation for clinical biochemistry analysers. Provide concise Markdown tables and actionable recommendations focused on analytical quality and patient safety.',
       prompt: userPrompt,
       maxOutputTokens: 2048,
     });
