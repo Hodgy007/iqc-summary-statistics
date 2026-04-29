@@ -899,6 +899,24 @@
       margin-bottom: 16px;
     }
     .settings-section h3 { font-size: 15px; margin-bottom: 16px; }
+    .settings-textarea {
+      width: 100%;
+      min-height: 150px;
+      resize: vertical;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 10px 12px;
+      font: 13px/1.5 'SF Mono', 'Fira Code', Consolas, monospace;
+      outline: none;
+    }
+    .settings-textarea:focus { border-color: var(--accent); }
+    .activity-slider {
+      flex: 1;
+      min-width: 220px;
+      accent-color: var(--accent);
+    }
     .user-row {
       display: flex;
       align-items: center;
@@ -1314,6 +1332,17 @@
       <div id="usersList">Loading...</div>
     </div>
     <div class="settings-section" style="margin-top:24px">
+      <h3>AI Insights Prompt</h3>
+      <textarea id="aiPromptInput" class="settings-textarea" spellcheck="true"></textarea>
+      <div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:10px">
+        <div id="aiPromptMessage" style="font-size:12px;color:var(--text-dim)"></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn" id="btnResetAiPrompt" style="padding:5px 10px;font-size:12px">Reset</button>
+          <button class="btn btn-primary" id="btnSaveAiPrompt" style="padding:5px 10px;font-size:12px">Save Prompt</button>
+        </div>
+      </div>
+    </div>
+    <div class="settings-section" style="margin-top:24px">
       <h3>Activity Log</h3>
       <div id="activityLog" style="margin-top:12px">Loading...</div>
       <div id="activityPagination" style="display:flex;gap:8px;margin-top:12px;align-items:center"></div>
@@ -1647,6 +1676,7 @@ document.getElementById('btnSettings').addEventListener('click', () => {
   document.getElementById('resultsSection').classList.add('hidden');
   document.getElementById('settingsSection').classList.remove('hidden');
   loadUsers();
+  loadAiPromptSettings();
   loadActivityLog();
 });
 
@@ -1774,10 +1804,55 @@ async function resetUserPassword(userId, email) {
 }
 
 // =============================================
+// AI PROMPT SETTINGS
+// =============================================
+const AI_PROMPT_STORAGE_KEY = 'iqcAiInsightsPrompt';
+const DEFAULT_AI_INSIGHTS_PROMPT = `Prioritise patient safety and analytical quality.
+Keep the response concise and table-led.
+Only include findings supported by the submitted IQC summary statistics.
+Use plain UK English and avoid speculative root causes unless the evidence is strong.`;
+
+function getAiInsightsPrompt() {
+  return localStorage.getItem(AI_PROMPT_STORAGE_KEY) || DEFAULT_AI_INSIGHTS_PROMPT;
+}
+
+function loadAiPromptSettings() {
+  const input = document.getElementById('aiPromptInput');
+  const message = document.getElementById('aiPromptMessage');
+  if (!input || !message) return;
+  input.value = getAiInsightsPrompt();
+  message.textContent = 'This prompt is added to every AI Insights request from this browser.';
+  message.style.color = 'var(--text-dim)';
+}
+
+document.getElementById('btnSaveAiPrompt').addEventListener('click', () => {
+  const input = document.getElementById('aiPromptInput');
+  const message = document.getElementById('aiPromptMessage');
+  const prompt = input.value.trim();
+  if (!prompt) {
+    input.focus();
+    message.textContent = 'Prompt cannot be empty.';
+    message.style.color = 'var(--danger)';
+    return;
+  }
+  localStorage.setItem(AI_PROMPT_STORAGE_KEY, prompt);
+  message.textContent = 'Prompt saved.';
+  message.style.color = 'var(--success)';
+});
+
+document.getElementById('btnResetAiPrompt').addEventListener('click', () => {
+  localStorage.removeItem(AI_PROMPT_STORAGE_KEY);
+  loadAiPromptSettings();
+  const message = document.getElementById('aiPromptMessage');
+  message.textContent = 'Prompt reset to default.';
+  message.style.color = 'var(--success)';
+});
+
+// =============================================
 // ACTIVITY LOG
 // =============================================
 let activityPage = 0;
-const ACTIVITY_PAGE_SIZE = 25;
+const ACTIVITY_PAGE_SIZE = 10;
 
 async function loadActivityLog(page = 0) {
   activityPage = page;
@@ -1854,13 +1929,13 @@ async function loadActivityLog(page = 0) {
       </div>
     `;
 
-    const totalPages = Math.ceil(total / ACTIVITY_PAGE_SIZE);
+    const totalPages = Math.max(1, Math.ceil(total / ACTIVITY_PAGE_SIZE));
     pagination.innerHTML = `
-      <span style="font-size:12px;color:var(--text-dim)">Showing ${offset + 1}-${Math.min(offset + ACTIVITY_PAGE_SIZE, total)} of ${total}</span>
-      <button class="btn" style="padding:4px 10px;font-size:11px" onclick="loadActivityLog(0)" ${page === 0 ? 'disabled' : ''}>First</button>
-      <button class="btn" style="padding:4px 10px;font-size:11px" onclick="loadActivityLog(${page - 1})" ${page === 0 ? 'disabled' : ''}>Prev</button>
-      <button class="btn" style="padding:4px 10px;font-size:11px" onclick="loadActivityLog(${page + 1})" ${page >= totalPages - 1 ? 'disabled' : ''}>Next</button>
-      <button class="btn" style="padding:4px 10px;font-size:11px" onclick="loadActivityLog(${totalPages - 1})" ${page >= totalPages - 1 ? 'disabled' : ''}>Last</button>
+      <span style="font-size:12px;color:var(--text-dim);min-width:160px">Showing ${offset + 1}-${Math.min(offset + ACTIVITY_PAGE_SIZE, total)} of ${total}</span>
+      <input class="activity-slider" type="range" min="1" max="${totalPages}" value="${page + 1}" ${totalPages <= 1 ? 'disabled' : ''}
+        oninput="document.getElementById('activityPageLabel').textContent = 'Page ' + this.value + ' of ${totalPages}'"
+        onchange="loadActivityLog(Number(this.value) - 1)">
+      <span id="activityPageLabel" style="font-size:12px;color:var(--text-dim);min-width:90px;text-align:right">Page ${page + 1} of ${totalPages}</span>
     `;
   } catch (err) {
     container.innerHTML = `<div class="auth-error">Error: ${escapeHtml(err.message)}</div>`;
@@ -4284,7 +4359,7 @@ btnInsights.addEventListener('click', async () => {
     const resp = await fetch('/api/insights', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ resultsData: insightResults, dateRange }),
+      body: JSON.stringify({ resultsData: insightResults, dateRange, userPrompt: getAiInsightsPrompt() }),
     });
 
     if (!resp.ok) {
