@@ -912,10 +912,18 @@
       outline: none;
     }
     .settings-textarea:focus { border-color: var(--accent); }
-    .activity-slider {
-      flex: 1;
-      min-width: 220px;
-      accent-color: var(--accent);
+    .activity-scroll {
+      max-height: 360px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .activity-scroll table { margin: 0; }
+    .activity-scroll thead th {
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      z-index: 1;
     }
     .user-row {
       display: flex;
@@ -1852,21 +1860,20 @@ document.getElementById('btnResetAiPrompt').addEventListener('click', () => {
 // ACTIVITY LOG
 // =============================================
 let activityPage = 0;
-const ACTIVITY_PAGE_SIZE = 10;
+const ACTIVITY_FETCH_LIMIT = 100;
 
-async function loadActivityLog(page = 0) {
-  activityPage = page;
+async function loadActivityLog() {
+  activityPage = 0;
   const container = document.getElementById('activityLog');
   const pagination = document.getElementById('activityPagination');
   container.innerHTML = '<div style="color:var(--text-dim)">Loading activity...</div>';
 
   try {
-    const offset = page * ACTIVITY_PAGE_SIZE;
-    const resp = await fetch(`/api/admin/activity?limit=${ACTIVITY_PAGE_SIZE}&offset=${offset}`);
+    const resp = await fetch(`/api/admin/activity?limit=${ACTIVITY_FETCH_LIMIT}&offset=0`);
     if (!resp.ok) { container.innerHTML = '<div class="auth-error">Failed to load activity log</div>'; return; }
     const { logs, total } = await resp.json();
 
-    if (logs.length === 0 && page === 0) {
+    if (logs.length === 0) {
       container.innerHTML = '<div style="color:var(--text-dim)">No activity recorded yet.</div>';
       pagination.innerHTML = '';
       return;
@@ -1901,7 +1908,7 @@ async function loadActivityLog(page = 0) {
     };
 
     container.innerHTML = `
-      <div class="table-container">
+      <div class="activity-scroll">
         <table style="font-size:12px">
           <thead><tr>
             <th style="text-align:left">Time</th>
@@ -1929,14 +1936,7 @@ async function loadActivityLog(page = 0) {
       </div>
     `;
 
-    const totalPages = Math.max(1, Math.ceil(total / ACTIVITY_PAGE_SIZE));
-    pagination.innerHTML = `
-      <span style="font-size:12px;color:var(--text-dim);min-width:160px">Showing ${offset + 1}-${Math.min(offset + ACTIVITY_PAGE_SIZE, total)} of ${total}</span>
-      <input class="activity-slider" type="range" min="1" max="${totalPages}" value="${page + 1}" ${totalPages <= 1 ? 'disabled' : ''}
-        oninput="document.getElementById('activityPageLabel').textContent = 'Page ' + this.value + ' of ${totalPages}'"
-        onchange="loadActivityLog(Number(this.value) - 1)">
-      <span id="activityPageLabel" style="font-size:12px;color:var(--text-dim);min-width:90px;text-align:right">Page ${page + 1} of ${totalPages}</span>
-    `;
+    pagination.innerHTML = `<span style="font-size:12px;color:var(--text-dim)">Showing latest ${logs.length} of ${total}. Scroll inside the log to view more rows.</span>`;
   } catch (err) {
     container.innerHTML = `<div class="auth-error">Error: ${escapeHtml(err.message)}</div>`;
     pagination.innerHTML = '';
