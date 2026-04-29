@@ -2,6 +2,8 @@ import { streamText } from 'ai';
 import { requireAuth } from './lib/auth.js';
 
 const INSTRUMENTS = ['AU/DxI-1', 'AU/DxI-2', 'AU/DxI-3', 'AU/DxI-4'];
+const DEFAULT_MAX_OUTPUT_TOKENS = 8192;
+const MAX_OUTPUT_TOKENS = Number.parseInt(process.env.AI_INSIGHTS_MAX_TOKENS || '', 10) || DEFAULT_MAX_OUTPUT_TOKENS;
 
 function formatNum(value, digits = 1) {
   return Number.isFinite(value) ? value.toFixed(digits) : '0.0';
@@ -184,7 +186,7 @@ Interpretation guide:
       system: 'You are a clinical laboratory quality control specialist with expertise in IQC data interpretation for clinical biochemistry analysers. Provide concise Markdown tables and actionable recommendations focused on analytical quality and patient safety.',
       prompt: userPrompt,
       temperature: 0.2,
-      maxOutputTokens: 4096,
+      maxOutputTokens: MAX_OUTPUT_TOKENS,
     });
 
     for await (const chunk of result.textStream) {
