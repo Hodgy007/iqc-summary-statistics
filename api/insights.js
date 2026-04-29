@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { streamText } from 'ai';
 import { requireAuth } from './lib/auth.js';
 
 const INSTRUMENTS = ['AU/DxI-1', 'AU/DxI-2', 'AU/DxI-3', 'AU/DxI-4'];
@@ -30,8 +30,9 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'resultsData required' });
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return res.status(500).json({ error: 'AI insights not configured (missing ANTHROPIC_API_KEY)' });
+  const gatewayKey = process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN;
+  if (!gatewayKey) {
+    return res.status(500).json({ error: 'AI insights not configured (missing AI_GATEWAY_API_KEY)' });
   }
 
   const dataSummary = formatResultsForPrompt(resultsData, dateRange);
@@ -47,26 +48,21 @@ Please cover:
 4. Analytes with low result counts (n<10) that may give unreliable statistics
 5. Specific, actionable recommendations for the laboratory team`;
 
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY.trim() });
-
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('X-Accel-Buffering', 'no');
   res.status(200);
 
   try {
-    const stream = client.messages.stream({
-      model: 'claude-opus-4-7',
-      max_tokens: 2048,
-      thinking: { type: 'adaptive' },
+    const result = streamText({
+      model: 'anthropic/claude-opus-4-7',
       system: 'You are a clinical laboratory quality control specialist with expertise in IQC data interpretation for clinical biochemistry analysers. Provide clear, structured, actionable insights focused on analytical quality and patient safety. Use numbered sections and bullet points for clarity.',
-      messages: [{ role: 'user', content: userPrompt }],
+      prompt: userPrompt,
+      maxOutputTokens: 2048,
     });
 
-    for await (const event of stream) {
-      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-        res.write(event.delta.text);
-      }
+    for await (const chunk of result.textStream) {
+      res.write(chunk);
     }
   } catch (err) {
     console.error('Insights error:', err);
