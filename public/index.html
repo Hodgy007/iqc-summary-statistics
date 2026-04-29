@@ -523,6 +523,60 @@
     .modal-body th, .modal-body td { border-bottom: 1px solid var(--border); }
     .modal-body code { background: var(--bg); padding: 2px 6px; border-radius: 3px; font-size: 12px; }
 
+    .insights-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .insights-copy-status {
+      color: var(--success);
+      font-size: 12px;
+      min-width: 46px;
+    }
+    .insights-content {
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .insights-content.streaming {
+      white-space: pre-wrap;
+      font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+    }
+    .insights-content h4 {
+      font-size: 14px;
+      margin: 18px 0 8px;
+      color: var(--accent);
+    }
+    .insights-content h4:first-child { margin-top: 0; }
+    .insights-content p { margin: 8px 0 12px; color: var(--text); }
+    .insights-content ul { margin: 8px 0 12px; padding-left: 20px; }
+    .insights-content li { margin: 4px 0; }
+    .insights-content table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 8px 0 16px;
+      font-size: 12px;
+      table-layout: auto;
+    }
+    .insights-content th {
+      background: var(--bg);
+      color: var(--text);
+      font-weight: 600;
+      text-align: left;
+      padding: 7px 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .insights-content td {
+      vertical-align: top;
+      padding: 7px 8px;
+      border-bottom: 1px solid rgba(71,85,105,0.35);
+      color: var(--text);
+    }
+
     /* Multi-select analyte filter */
     .multi-select { position: relative; }
     .multi-select-btn {
@@ -1284,11 +1338,15 @@
   <div class="modal" style="max-width:760px;max-height:90vh">
     <div class="modal-header">
       <h3>AI Insights</h3>
-      <button class="modal-close" id="insightsModalClose">&#10005;</button>
+      <div class="insights-toolbar">
+        <span class="insights-copy-status" id="insightsCopyStatus"></span>
+        <button class="btn" id="btnCopyInsights" type="button" disabled style="padding:5px 10px;font-size:12px">Copy</button>
+        <button class="modal-close" id="insightsModalClose">&#10005;</button>
+      </div>
     </div>
     <div class="modal-body" style="padding:20px;overflow-y:auto;max-height:calc(90vh - 60px)">
       <div id="insightsStatus" style="color:var(--text-dim);font-size:13px;margin-bottom:12px;display:none"></div>
-      <pre id="insightsContent" style="white-space:pre-wrap;font-family:inherit;font-size:13px;line-height:1.6;margin:0"></pre>
+      <div id="insightsContent" class="insights-content"></div>
     </div>
   </div>
 </div>
@@ -4000,6 +4058,101 @@ const insightsOverlay = document.getElementById('insightsModalOverlay');
 const insightsContent = document.getElementById('insightsContent');
 const insightsStatus = document.getElementById('insightsStatus');
 const btnInsights = document.getElementById('btnInsights');
+const btnCopyInsights = document.getElementById('btnCopyInsights');
+const insightsCopyStatus = document.getElementById('insightsCopyStatus');
+let insightsRawText = '';
+
+function getVisibleInsightResults() {
+  const search = document.getElementById('filterSearch').value.toLowerCase();
+  const cvFilter = document.getElementById('filterCV').value;
+
+  let data = resultsData.slice();
+  if (selectedAnalytes.size > 0) data = data.filter(r => selectedAnalytes.has(r.parameter));
+  if (search) data = data.filter(r => r.parameter.toLowerCase().includes(search));
+  if (cvFilter === 'high') data = data.filter(r => r.combined.cv > 10);
+  if (cvFilter === 'warn') data = data.filter(r => r.combined.cv > 5);
+  return data;
+}
+
+function splitMarkdownTableRow(line) {
+  let row = line.trim();
+  if (row.startsWith('|')) row = row.slice(1);
+  if (row.endsWith('|')) row = row.slice(0, -1);
+  return row.split('|').map(cell => cell.trim());
+}
+
+function isMarkdownTableSeparator(line) {
+  return /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(line.trim());
+}
+
+function formatInsightInline(text) {
+  return escapeHtml(text).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+}
+
+function renderInsightMarkdown(text) {
+  insightsContent.classList.remove('streaming');
+  const lines = text.replace(/\r\n/g, '\n').split('\n');
+  const html = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    if (!trimmed) { i++; continue; }
+
+    if (/^#{1,3}\s+/.test(trimmed)) {
+      html.push(`<h4>${formatInsightInline(trimmed.replace(/^#{1,3}\s+/, ''))}</h4>`);
+      i++;
+      continue;
+    }
+
+    if (trimmed.startsWith('|') && i + 1 < lines.length && isMarkdownTableSeparator(lines[i + 1])) {
+      const headers = splitMarkdownTableRow(trimmed);
+      const rows = [];
+      i += 2;
+      while (i < lines.length && lines[i].trim().startsWith('|')) {
+        rows.push(splitMarkdownTableRow(lines[i]));
+        i++;
+      }
+      html.push('<table><thead><tr>' + headers.map(h => `<th>${formatInsightInline(h)}</th>`).join('') + '</tr></thead><tbody>');
+      html.push(rows.map(row => '<tr>' + headers.map((_, idx) => `<td>${formatInsightInline(row[idx] || '')}</td>`).join('') + '</tr>').join(''));
+      html.push('</tbody></table>');
+      continue;
+    }
+
+    if (/^[-*]\s+/.test(trimmed)) {
+      const items = [];
+      while (i < lines.length && /^[-*]\s+/.test(lines[i].trim())) {
+        items.push(lines[i].trim().replace(/^[-*]\s+/, ''));
+        i++;
+      }
+      html.push('<ul>' + items.map(item => `<li>${formatInsightInline(item)}</li>`).join('') + '</ul>');
+      continue;
+    }
+
+    html.push(`<p>${formatInsightInline(trimmed)}</p>`);
+    i++;
+  }
+
+  insightsContent.innerHTML = html.join('') || '<p>No insights returned.</p>';
+}
+
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  document.execCommand('copy');
+  document.body.removeChild(textarea);
+}
 
 document.getElementById('insightsModalClose').addEventListener('click', () => {
   insightsOverlay.classList.remove('active');
@@ -4009,10 +4162,30 @@ insightsOverlay.addEventListener('click', (e) => {
   if (e.target === insightsOverlay) insightsOverlay.classList.remove('active');
 });
 
-btnInsights.addEventListener('click', async () => {
-  if (resultsData.length === 0) return;
+btnCopyInsights.addEventListener('click', async () => {
+  if (!insightsRawText.trim()) return;
+  try {
+    await copyTextToClipboard(insightsRawText.trim());
+    insightsCopyStatus.textContent = 'Copied';
+    setTimeout(() => { insightsCopyStatus.textContent = ''; }, 1500);
+  } catch (err) {
+    insightsCopyStatus.textContent = 'Copy failed';
+    setTimeout(() => { insightsCopyStatus.textContent = ''; }, 2000);
+  }
+});
 
+btnInsights.addEventListener('click', async () => {
+  const insightResults = getVisibleInsightResults();
+  if (insightResults.length === 0) {
+    alert('No visible results to analyse. Adjust the filters and try again.');
+    return;
+  }
+
+  insightsRawText = '';
   insightsContent.textContent = '';
+  insightsContent.classList.add('streaming');
+  insightsCopyStatus.textContent = '';
+  btnCopyInsights.disabled = true;
   insightsStatus.textContent = 'Analysing your IQC data…';
   insightsStatus.style.display = 'block';
   insightsOverlay.classList.add('active');
@@ -4034,13 +4207,14 @@ btnInsights.addEventListener('click', async () => {
     const resp = await fetch('/api/insights', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ resultsData, dateRange }),
+      body: JSON.stringify({ resultsData: insightResults, dateRange }),
     });
 
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({ error: resp.statusText }));
       if (resp.status === 401) { handleSessionExpired(); return; }
       insightsStatus.style.display = 'none';
+      insightsContent.classList.add('streaming');
       insightsContent.textContent = 'Error: ' + (err.error || 'Failed to get insights');
       return;
     }
@@ -4052,10 +4226,14 @@ btnInsights.addEventListener('click', async () => {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      insightsContent.textContent += decoder.decode(value, { stream: true });
+      insightsRawText += decoder.decode(value, { stream: true });
+      insightsContent.textContent = insightsRawText;
     }
+    renderInsightMarkdown(insightsRawText);
+    btnCopyInsights.disabled = !insightsRawText.trim();
   } catch (err) {
     insightsStatus.style.display = 'none';
+    insightsContent.classList.add('streaming');
     insightsContent.textContent = 'Error: ' + err.message;
   } finally {
     btnInsights.disabled = false;
