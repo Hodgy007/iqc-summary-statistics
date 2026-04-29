@@ -47,7 +47,7 @@ Please cover:
 4. Analytes with low result counts (n<10) that may give unreliable statistics
 5. Specific, actionable recommendations for the laboratory team`;
 
-  const client = new Anthropic();
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY.trim() });
 
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache');
