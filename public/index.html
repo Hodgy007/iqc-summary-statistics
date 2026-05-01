@@ -2389,8 +2389,9 @@ function renderStatCells(s, param, level, instrument) {
   if (!s || s.count === 0) return '<td>-</td><td>-</td><td>-</td><td>-</td>';
   const cvClass = s.cv > 10 ? 'cv-high' : s.cv > 5 ? 'cv-warn' : 'cv-ok';
   const d = `data-param="${escapeHtml(param)}" data-level="${escapeHtml(level)}" data-inst="${escapeHtml(instrument)}"`;
-  return `<td class="clickable" ${d} data-stat="mean">${s.mean.toFixed(2)}</td>
-    <td class="clickable" ${d} data-stat="sd">${s.sd.toFixed(2)}</td>
+  const dp = ['Ca', 'Mg', 'PO4'].includes(param) ? 3 : 2;
+  return `<td class="clickable" ${d} data-stat="mean">${s.mean.toFixed(dp)}</td>
+    <td class="clickable" ${d} data-stat="sd">${s.sd.toFixed(dp)}</td>
     <td class="clickable ${cvClass}" ${d} data-stat="cv">${s.cv.toFixed(2)}</td>
     <td class="clickable" ${d} data-stat="n">${s.count}</td>`;
 }
@@ -2822,17 +2823,18 @@ function exportPDF() {
 
   const tableBody = resultsData.map(row => {
     const r = [row.parameter, row.level];
+    const dp = ['Ca', 'Mg', 'PO4'].includes(row.parameter) ? 3 : 2;
     for (const inst of instruments) {
       const s = row[inst];
       if (s && s.count > 0) {
-        r.push(s.mean.toFixed(2), s.sd.toFixed(2), s.cv.toFixed(2), s.count);
+        r.push(s.mean.toFixed(dp), s.sd.toFixed(dp), s.cv.toFixed(2), s.count);
       } else {
         r.push('-', '-', '-', '-');
       }
     }
     const c = row.combined;
     if (c && c.count > 0) {
-      r.push(c.mean.toFixed(2), c.sd.toFixed(2), c.cv.toFixed(2), c.count);
+      r.push(c.mean.toFixed(dp), c.sd.toFixed(dp), c.cv.toFixed(2), c.count);
     } else {
       r.push('-', '-', '-', '-');
     }
@@ -2887,17 +2889,18 @@ function exportXLSX() {
   // Data rows
   for (const row of resultsData) {
     const r = [row.parameter, row.level];
+    const dp = ['Ca', 'Mg', 'PO4'].includes(row.parameter) ? 3 : 2;
     for (const inst of instruments) {
       const s = row[inst];
       if (s && s.count > 0) {
-        r.push(+s.mean.toFixed(2), +s.sd.toFixed(2), +s.cv.toFixed(2), s.count);
+        r.push(+s.mean.toFixed(dp), +s.sd.toFixed(dp), +s.cv.toFixed(2), s.count);
       } else {
         r.push('', '', '', '');
       }
     }
     const c = row.combined;
     if (c && c.count > 0) {
-      r.push(+c.mean.toFixed(2), +c.sd.toFixed(2), +c.cv.toFixed(2), c.count);
+      r.push(+c.mean.toFixed(dp), +c.sd.toFixed(dp), +c.cv.toFixed(2), c.count);
     } else {
       r.push('', '', '', '');
     }
@@ -3007,13 +3010,14 @@ function exportCSV() {
   csv += '\n';
 
   for (const row of resultsData) {
+    const dp = ['Ca', 'Mg', 'PO4'].includes(row.parameter) ? 3 : 2;
     csv += `${row.parameter},${row.level}`;
     for (const inst of instruments) {
       const s = row[inst];
-      csv += `,${s.mean.toFixed(2)},${s.sd.toFixed(2)},${s.cv.toFixed(2)},${s.count}`;
+      csv += `,${s.mean.toFixed(dp)},${s.sd.toFixed(dp)},${s.cv.toFixed(2)},${s.count}`;
     }
     const c = row.combined;
-    csv += `,${c.mean.toFixed(2)},${c.sd.toFixed(2)},${c.cv.toFixed(2)},${c.count}`;
+    csv += `,${c.mean.toFixed(dp)},${c.sd.toFixed(dp)},${c.cv.toFixed(2)},${c.count}`;
     csv += '\n';
   }
 
