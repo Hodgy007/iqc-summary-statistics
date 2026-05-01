@@ -2389,7 +2389,7 @@ function renderStatCells(s, param, level, instrument) {
   if (!s || s.count === 0) return '<td>-</td><td>-</td><td>-</td><td>-</td>';
   const cvClass = s.cv > 10 ? 'cv-high' : s.cv > 5 ? 'cv-warn' : 'cv-ok';
   const d = `data-param="${escapeHtml(param)}" data-level="${escapeHtml(level)}" data-inst="${escapeHtml(instrument)}"`;
-  const dp = ['Ca', 'Mg', 'PO4'].includes(param) ? 3 : 2;
+  const dp = /^(ca|mg|po4|calcium|magnesium|phosphate)$/i.test(param) ? 3 : 2;
   return `<td class="clickable" ${d} data-stat="mean">${s.mean.toFixed(dp)}</td>
     <td class="clickable" ${d} data-stat="sd">${s.sd.toFixed(dp)}</td>
     <td class="clickable ${cvClass}" ${d} data-stat="cv">${s.cv.toFixed(2)}</td>
@@ -2823,7 +2823,7 @@ function exportPDF() {
 
   const tableBody = resultsData.map(row => {
     const r = [row.parameter, row.level];
-    const dp = ['Ca', 'Mg', 'PO4'].includes(row.parameter) ? 3 : 2;
+    const dp = /^(ca|mg|po4|calcium|magnesium|phosphate)$/i.test(row.parameter) ? 3 : 2;
     for (const inst of instruments) {
       const s = row[inst];
       if (s && s.count > 0) {
@@ -2889,7 +2889,7 @@ function exportXLSX() {
   // Data rows
   for (const row of resultsData) {
     const r = [row.parameter, row.level];
-    const dp = ['Ca', 'Mg', 'PO4'].includes(row.parameter) ? 3 : 2;
+    const dp = /^(ca|mg|po4|calcium|magnesium|phosphate)$/i.test(row.parameter) ? 3 : 2;
     for (const inst of instruments) {
       const s = row[inst];
       if (s && s.count > 0) {
@@ -3010,7 +3010,7 @@ function exportCSV() {
   csv += '\n';
 
   for (const row of resultsData) {
-    const dp = ['Ca', 'Mg', 'PO4'].includes(row.parameter) ? 3 : 2;
+    const dp = /^(ca|mg|po4|calcium|magnesium|phosphate)$/i.test(row.parameter) ? 3 : 2;
     csv += `${row.parameter},${row.level}`;
     for (const inst of instruments) {
       const s = row[inst];
