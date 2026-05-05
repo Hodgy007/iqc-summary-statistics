@@ -75,7 +75,13 @@ function processData(data) {
   });
 
   filtered = filtered.map(row => {
-    if (LEVEL_OVERRIDE_PROTOCOLS.has(row.protocol.trim()) || (row.sampleId && row.sampleId.includes('TPP')) || (row.sampleId && row.sampleId.includes('HBQC'))) {
+    const protocol = row.protocol.trim();
+    if (
+      LEVEL_OVERRIDE_PROTOCOLS.has(protocol) ||
+      protocol.toLowerCase().includes('hstni') ||
+      (row.sampleId && row.sampleId.includes('TPP')) ||
+      (row.sampleId && row.sampleId.includes('HBQC'))
+    ) {
       return { ...row, level: '4' };
     }
     return row;

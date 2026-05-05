@@ -217,6 +217,30 @@ describe('processData', () => {
     expect(result[0].level).toBe('4');
   });
 
+  test('overrides level to 4 for any protocol containing hsTnI (case-insensitive)', () => {
+    const variants = [
+      'DXI 1 hsTnI',
+      'DXI 2 hsTnI',
+      'DXI 3 hsTnI',
+      'DXI 4 hsTnI',
+      'DxI 4.1 hsTnI',
+      'DxI 3.1 hsTnI',
+      'DXI 3 M hsTnI',
+      'DXI 4 M hsTnI',
+    ];
+    for (const protocol of variants) {
+      const data = [makeRow({ protocol, instrument: 'DXI 1 L', level: '1' })];
+      const result = processData(data);
+      expect(result[0].level).toBe('4');
+    }
+  });
+
+  test('does not override level for non-hsTnI protocols on the same instrument', () => {
+    const data = [makeRow({ protocol: 'DxI 4.1 M', instrument: 'DXI 4 M', level: '1' })];
+    const result = processData(data);
+    expect(result[0].level).toBe('1');
+  });
+
   test('overrides level for TPP sample IDs', () => {
     const data = [makeRow({ sampleId: 'TPP-001' })];
     const result = processData(data);
