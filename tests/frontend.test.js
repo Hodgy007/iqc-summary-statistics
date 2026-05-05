@@ -192,8 +192,22 @@ describe('processData', () => {
   });
 
   test('filters out eval protocols', () => {
-    const data = [makeRow({ protocol: 'Some Eval Protocol' })];
-    expect(processData(data)).toHaveLength(0);
+    const variants = [
+      'Some Eval Protocol',
+      'Daily Evaluation',
+      'DXI 1 EVAL',
+      'DxI 4.1 Evaluation',
+      'eval lot 5',
+    ];
+    for (const protocol of variants) {
+      const data = [makeRow({ protocol })];
+      expect(processData(data)).toHaveLength(0);
+    }
+  });
+
+  test('does not filter protocols that merely contain "eval" mid-word', () => {
+    const data = [makeRow({ protocol: 'Devalue Test', instrument: 'AU5800 1 L' })];
+    expect(processData(data)).toHaveLength(1);
   });
 
   test('filters out manually rejected rows', () => {

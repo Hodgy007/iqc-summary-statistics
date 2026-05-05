@@ -2220,7 +2220,7 @@ function processData(data) {
   const excludeEval = document.getElementById('filterExcludeEval')?.checked !== false;
   let filtered = data.filter(row => {
     if (EXCLUDED_PROTOCOLS.has(row.protocol)) return false;
-    if (excludeEval && row.protocol.toLowerCase().includes('evaluation')) return false;
+    if (excludeEval && /\beval/i.test(row.protocol)) return false;
     return true;
   });
 
@@ -3280,7 +3280,7 @@ function applyFilters() {
   const knownInst = new Set(['AU/DxI-1', 'AU/DxI-2', 'AU/DxI-3', 'AU/DxI-4']);
   let base = rawData.filter(row => {
     if (EXCLUDED_PROTOCOLS.has(row.protocol)) return false;
-    if (excludeEval && row.protocol.toLowerCase().includes('evaluation')) return false;
+    if (excludeEval && /\beval/i.test(row.protocol)) return false;
     if (status === 'accepted' && (row.status === 'Manually rejected' || row.status === 'Rerun requested')) return false;
     if (status === 'rejected' && row.status !== 'Manually rejected') return false;
     return true;

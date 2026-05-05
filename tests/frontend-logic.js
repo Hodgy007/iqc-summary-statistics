@@ -63,7 +63,7 @@ function parseCSV(text) {
 function processData(data) {
   let filtered = data.filter(row => {
     if (EXCLUDED_PROTOCOLS.has(row.protocol)) return false;
-    if (row.protocol.toLowerCase().includes('eval')) return false;
+    if (/\beval/i.test(row.protocol)) return false;
     return true;
   });
 
