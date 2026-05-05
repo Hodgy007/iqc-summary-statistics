@@ -61,20 +61,7 @@ function parseCSV(text) {
 }
 
 function processData(data) {
-  let filtered = data.filter(row => {
-    if (EXCLUDED_PROTOCOLS.has(row.protocol)) return false;
-    if (/\beval/i.test(row.protocol) && !/hstni/i.test(row.protocol)) return false;
-    return true;
-  });
-
-  filtered = filtered.filter(r => r.status !== 'Manually rejected' && r.status !== 'Rerun requested');
-
-  filtered = filtered.map(row => {
-    const mapped = INSTRUMENTS_MAP[row.instrument];
-    return { ...row, instrument: mapped || row.instrument };
-  });
-
-  filtered = filtered.map(row => {
+  let filtered = data.map(row => {
     const protocol = row.protocol.trim();
     if (
       LEVEL_OVERRIDE_PROTOCOLS.has(protocol) ||
@@ -85,6 +72,19 @@ function processData(data) {
       return { ...row, level: '4' };
     }
     return row;
+  });
+
+  filtered = filtered.filter(row => {
+    if (EXCLUDED_PROTOCOLS.has(row.protocol)) return false;
+    if (/\beval/i.test(row.protocol)) return false;
+    return true;
+  });
+
+  filtered = filtered.filter(r => r.status !== 'Manually rejected' && r.status !== 'Rerun requested');
+
+  filtered = filtered.map(row => {
+    const mapped = INSTRUMENTS_MAP[row.instrument];
+    return { ...row, instrument: mapped || row.instrument };
   });
 
   const knownInstruments = new Set(['AU/DxI-1', 'AU/DxI-2', 'AU/DxI-3', 'AU/DxI-4']);

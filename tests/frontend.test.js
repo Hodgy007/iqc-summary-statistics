@@ -241,6 +241,20 @@ describe('processData', () => {
       'DxI 3.1 hsTnI',
       'DXI 3 M hsTnI',
       'DXI 4 M hsTnI',
+    ];
+    for (const protocol of variants) {
+      const data = [makeRow({ protocol, instrument: 'DXI 1 L', level: '1' })];
+      const result = processData(data);
+      expect(result).toHaveLength(1);
+      expect(result[0].level).toBe('4');
+    }
+  });
+
+  test('hsTnI Eval rows are dropped when the eval filter is active', () => {
+    // The test helper always excludes eval rows (no toggle), but the level-4
+    // promotion happens first so live runs with the toggle off would keep
+    // these rows at level 4.
+    const variants = [
       'DxI 1 hsTnI Eval',
       'DxI 2 hsTnI Eval',
       'DxI 3 hsTnI Eval',
@@ -248,9 +262,7 @@ describe('processData', () => {
     ];
     for (const protocol of variants) {
       const data = [makeRow({ protocol, instrument: 'DXI 1 L', level: '1' })];
-      const result = processData(data);
-      expect(result).toHaveLength(1);
-      expect(result[0].level).toBe('4');
+      expect(processData(data)).toHaveLength(0);
     }
   });
 
