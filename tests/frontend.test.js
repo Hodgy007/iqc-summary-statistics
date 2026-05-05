@@ -241,10 +241,15 @@ describe('processData', () => {
       'DxI 3.1 hsTnI',
       'DXI 3 M hsTnI',
       'DXI 4 M hsTnI',
+      'DxI 1 hsTnI Eval',
+      'DxI 2 hsTnI Eval',
+      'DxI 3 hsTnI Eval',
+      'DxI 4 hsTnI Eval',
     ];
     for (const protocol of variants) {
       const data = [makeRow({ protocol, instrument: 'DXI 1 L', level: '1' })];
       const result = processData(data);
+      expect(result).toHaveLength(1);
       expect(result[0].level).toBe('4');
     }
   });

@@ -2216,11 +2216,13 @@ function parseCSV(text) {
 // DATA PROCESSING (replicates VBA logic)
 // =============================================
 function processData(data) {
-  // 1. Filter out excluded protocols (and evaluations if toggle is checked)
+  // 1. Filter out excluded protocols (and evaluations if toggle is checked).
+  //    hsTnI evaluation runs are kept regardless — they're a separate single-level
+  //    QC product and need to be promoted to level 4 in step 4.
   const excludeEval = document.getElementById('filterExcludeEval')?.checked !== false;
   let filtered = data.filter(row => {
     if (EXCLUDED_PROTOCOLS.has(row.protocol)) return false;
-    if (excludeEval && /\beval/i.test(row.protocol)) return false;
+    if (excludeEval && /\beval/i.test(row.protocol) && !/hstni/i.test(row.protocol)) return false;
     return true;
   });
 
@@ -3280,7 +3282,7 @@ function applyFilters() {
   const knownInst = new Set(['AU/DxI-1', 'AU/DxI-2', 'AU/DxI-3', 'AU/DxI-4']);
   let base = rawData.filter(row => {
     if (EXCLUDED_PROTOCOLS.has(row.protocol)) return false;
-    if (excludeEval && /\beval/i.test(row.protocol)) return false;
+    if (excludeEval && /\beval/i.test(row.protocol) && !/hstni/i.test(row.protocol)) return false;
     if (status === 'accepted' && (row.status === 'Manually rejected' || row.status === 'Rerun requested')) return false;
     if (status === 'rejected' && row.status !== 'Manually rejected') return false;
     return true;
