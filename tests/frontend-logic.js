@@ -61,9 +61,22 @@ function parseCSV(text) {
 }
 
 function processData(data) {
-  let filtered = data.filter(row => {
+  let filtered = data.map(row => {
+    const protocol = row.protocol.trim();
+    if (
+      LEVEL_OVERRIDE_PROTOCOLS.has(protocol) ||
+      protocol.toLowerCase().includes('hstni') ||
+      (row.sampleId && row.sampleId.includes('TPP')) ||
+      (row.sampleId && row.sampleId.includes('HBQC'))
+    ) {
+      return { ...row, level: '4' };
+    }
+    return row;
+  });
+
+  filtered = filtered.filter(row => {
     if (EXCLUDED_PROTOCOLS.has(row.protocol)) return false;
-    if (row.protocol.toLowerCase().includes('eval')) return false;
+    if (/\beval/i.test(row.protocol)) return false;
     return true;
   });
 
@@ -72,13 +85,6 @@ function processData(data) {
   filtered = filtered.map(row => {
     const mapped = INSTRUMENTS_MAP[row.instrument];
     return { ...row, instrument: mapped || row.instrument };
-  });
-
-  filtered = filtered.map(row => {
-    if (LEVEL_OVERRIDE_PROTOCOLS.has(row.protocol.trim()) || (row.sampleId && row.sampleId.includes('TPP')) || (row.sampleId && row.sampleId.includes('HBQC'))) {
-      return { ...row, level: '4' };
-    }
-    return row;
   });
 
   const knownInstruments = new Set(['AU/DxI-1', 'AU/DxI-2', 'AU/DxI-3', 'AU/DxI-4']);

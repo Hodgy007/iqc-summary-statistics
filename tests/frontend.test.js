@@ -192,8 +192,22 @@ describe('processData', () => {
   });
 
   test('filters out eval protocols', () => {
-    const data = [makeRow({ protocol: 'Some Eval Protocol' })];
-    expect(processData(data)).toHaveLength(0);
+    const variants = [
+      'Some Eval Protocol',
+      'Daily Evaluation',
+      'DXI 1 EVAL',
+      'DxI 4.1 Evaluation',
+      'eval lot 5',
+    ];
+    for (const protocol of variants) {
+      const data = [makeRow({ protocol })];
+      expect(processData(data)).toHaveLength(0);
+    }
+  });
+
+  test('does not filter protocols that merely contain "eval" mid-word', () => {
+    const data = [makeRow({ protocol: 'Devalue Test', instrument: 'AU5800 1 L' })];
+    expect(processData(data)).toHaveLength(1);
   });
 
   test('filters out manually rejected rows', () => {
@@ -215,6 +229,47 @@ describe('processData', () => {
     const data = [makeRow({ protocol: 'LAC DXI 1 L', instrument: 'DXI 1 L', level: '2' })];
     const result = processData(data);
     expect(result[0].level).toBe('4');
+  });
+
+  test('overrides level to 4 for any protocol containing hsTnI (case-insensitive)', () => {
+    const variants = [
+      'DXI 1 hsTnI',
+      'DXI 2 hsTnI',
+      'DXI 3 hsTnI',
+      'DXI 4 hsTnI',
+      'DxI 4.1 hsTnI',
+      'DxI 3.1 hsTnI',
+      'DXI 3 M hsTnI',
+      'DXI 4 M hsTnI',
+    ];
+    for (const protocol of variants) {
+      const data = [makeRow({ protocol, instrument: 'DXI 1 L', level: '1' })];
+      const result = processData(data);
+      expect(result).toHaveLength(1);
+      expect(result[0].level).toBe('4');
+    }
+  });
+
+  test('hsTnI Eval rows are dropped when the eval filter is active', () => {
+    // The test helper always excludes eval rows (no toggle), but the level-4
+    // promotion happens first so live runs with the toggle off would keep
+    // these rows at level 4.
+    const variants = [
+      'DxI 1 hsTnI Eval',
+      'DxI 2 hsTnI Eval',
+      'DxI 3 hsTnI Eval',
+      'DxI 4 hsTnI Eval',
+    ];
+    for (const protocol of variants) {
+      const data = [makeRow({ protocol, instrument: 'DXI 1 L', level: '1' })];
+      expect(processData(data)).toHaveLength(0);
+    }
+  });
+
+  test('does not override level for non-hsTnI protocols on the same instrument', () => {
+    const data = [makeRow({ protocol: 'DxI 4.1 M', instrument: 'DXI 4 M', level: '1' })];
+    const result = processData(data);
+    expect(result[0].level).toBe('1');
   });
 
   test('overrides level for TPP sample IDs', () => {

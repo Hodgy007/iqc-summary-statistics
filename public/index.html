@@ -2216,25 +2216,11 @@ function parseCSV(text) {
 // DATA PROCESSING (replicates VBA logic)
 // =============================================
 function processData(data) {
-  // 1. Filter out excluded protocols (and evaluations if toggle is checked)
-  const excludeEval = document.getElementById('filterExcludeEval')?.checked !== false;
-  let filtered = data.filter(row => {
-    if (EXCLUDED_PROTOCOLS.has(row.protocol)) return false;
-    if (excludeEval && row.protocol.toLowerCase().includes('evaluation')) return false;
-    return true;
-  });
-
-  // 2. Filter out rejected
-  filtered = filtered.filter(r => r.status !== 'Manually rejected' && r.status !== 'Rerun requested');
-
-  // 3. Rename instruments
-  filtered = filtered.map(row => {
-    const mapped = INSTRUMENTS_MAP[row.instrument];
-    return { ...row, instrument: mapped || row.instrument };
-  });
-
-  // 4. Override levels for specific protocols
-  filtered = filtered.map(row => {
+  // 1. Override levels for specific protocols FIRST so the promotion is
+  //    locked in before any later filter can drop the row. In particular,
+  //    hsTnI Eval rows get promoted to level 4 here, then the eval toggle
+  //    can still drop them like any other evaluation row.
+  let filtered = data.map(row => {
     const protocol = row.protocol.trim();
     if (
       LEVEL_OVERRIDE_PROTOCOLS.has(protocol) ||
@@ -2245,6 +2231,23 @@ function processData(data) {
       return { ...row, level: '4' };
     }
     return row;
+  });
+
+  // 2. Filter out excluded protocols (and evaluations if toggle is checked).
+  const excludeEval = document.getElementById('filterExcludeEval')?.checked !== false;
+  filtered = filtered.filter(row => {
+    if (EXCLUDED_PROTOCOLS.has(row.protocol)) return false;
+    if (excludeEval && /\beval/i.test(row.protocol)) return false;
+    return true;
+  });
+
+  // 3. Filter out rejected
+  filtered = filtered.filter(r => r.status !== 'Manually rejected' && r.status !== 'Rerun requested');
+
+  // 4. Rename instruments
+  filtered = filtered.map(row => {
+    const mapped = INSTRUMENTS_MAP[row.instrument];
+    return { ...row, instrument: mapped || row.instrument };
   });
 
   // Only keep rows with known instruments
@@ -3276,22 +3279,30 @@ function applyFilters() {
   const status = document.getElementById('filterStatus').value;
   const excludeEval = document.getElementById('filterExcludeEval').checked;
 
-  // Build base data respecting eval toggle and protocol exclusions
+  // Build base data respecting eval toggle and protocol exclusions.
+  // Promote level FIRST so hsTnI rows are tagged level 4 even before the eval
+  // toggle decides whether to drop them.
   const knownInst = new Set(['AU/DxI-1', 'AU/DxI-2', 'AU/DxI-3', 'AU/DxI-4']);
-  let base = rawData.filter(row => {
+  let base = rawData.map(row => {
+    const protocol = row.protocol.trim();
+    if (
+      LEVEL_OVERRIDE_PROTOCOLS.has(protocol) ||
+      protocol.toLowerCase().includes('hstni') ||
+      (row.sampleId && row.sampleId.includes('TPP')) ||
+      (row.sampleId && row.sampleId.includes('HBQC'))
+    ) {
+      return { ...row, level: '4' };
+    }
+    return row;
+  }).filter(row => {
     if (EXCLUDED_PROTOCOLS.has(row.protocol)) return false;
-    if (excludeEval && row.protocol.toLowerCase().includes('evaluation')) return false;
+    if (excludeEval && /\beval/i.test(row.protocol)) return false;
     if (status === 'accepted' && (row.status === 'Manually rejected' || row.status === 'Rerun requested')) return false;
     if (status === 'rejected' && row.status !== 'Manually rejected') return false;
     return true;
   }).map(row => {
     const mapped = INSTRUMENTS_MAP[row.instrument];
     return { ...row, instrument: mapped || row.instrument };
-  }).map(row => {
-    if (LEVEL_OVERRIDE_PROTOCOLS.has(row.protocol.trim()) || (row.sampleId && row.sampleId.includes('TPP')) || (row.sampleId && row.sampleId.includes('HBQC'))) {
-      return { ...row, level: '4' };
-    }
-    return row;
   }).filter(r => knownInst.has(r.instrument));
 
   // Repopulate protocol dropdown with current data
