@@ -3702,7 +3702,7 @@ function sortDetailTable(col) {
 }
 
 // Export & Reset
-document.getElementById('btnReport').addEventListener('click', exportPDF);
+document.getElementById('btnReport').addEventListener('click', openExportPdfModal);
 document.getElementById('btnExportXLSX').addEventListener('click', exportXLSX);
 document.getElementById('btnExportCSV').addEventListener('click', exportCSV);
 document.getElementById('btnReset').addEventListener('click', () => {
@@ -3909,6 +3909,43 @@ document.getElementById('saveModalConfirm').addEventListener('click', async () =
 
   btn.disabled = false;
   btn.textContent = 'Save Report';
+});
+
+// =============================================
+// EXPORT PDF — dialog
+// =============================================
+const exportPdfModalOverlay = document.getElementById('exportPdfModalOverlay');
+
+function updateExportPdfPreview() {
+  const scope = document.querySelector('input[name="exportScope"]:checked').value;
+  const total = resultsData.length;
+  const visible = scope === 'filtered' ? getVisibleResults().length : total;
+  const preview = document.getElementById('exportPdfPreview');
+  if (scope === 'filtered') {
+    preview.textContent = `${visible.toLocaleString()} of ${total.toLocaleString()} analyte/level rows will be included.`;
+  } else {
+    preview.textContent = `All ${total.toLocaleString()} analyte/level rows will be included.`;
+  }
+}
+
+function openExportPdfModal() {
+  // Default to filtered each time the modal opens (mirrors Save Report behaviour)
+  document.querySelector('input[name="exportScope"][value="filtered"]').checked = true;
+  updateExportPdfPreview();
+  exportPdfModalOverlay.classList.add('active');
+}
+
+document.querySelectorAll('input[name="exportScope"]').forEach(r =>
+  r.addEventListener('change', updateExportPdfPreview)
+);
+document.getElementById('exportPdfModalClose').addEventListener('click', () => exportPdfModalOverlay.classList.remove('active'));
+document.getElementById('exportPdfModalCancel').addEventListener('click', () => exportPdfModalOverlay.classList.remove('active'));
+exportPdfModalOverlay.addEventListener('click', e => { if (e.target === exportPdfModalOverlay) exportPdfModalOverlay.classList.remove('active'); });
+
+document.getElementById('exportPdfModalConfirm').addEventListener('click', () => {
+  const scope = document.querySelector('input[name="exportScope"]:checked').value;
+  exportPdfModalOverlay.classList.remove('active');
+  exportPDF(scope);
 });
 
 // Load Report - open modal
