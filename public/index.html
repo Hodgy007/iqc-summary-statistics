@@ -1418,6 +1418,38 @@
   </div>
 </div>
 
+<!-- Export PDF Dialog -->
+<div class="modal-overlay" id="exportPdfModalOverlay">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header">
+      <h3>Export PDF Report</h3>
+      <button class="modal-close" id="exportPdfModalClose">&#10005;</button>
+    </div>
+    <div class="modal-body" style="padding:20px">
+      <div style="margin-bottom:6px;font-size:13px;color:var(--text-dim)">What to export</div>
+      <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;margin-bottom:8px;font-size:13px">
+        <input type="radio" name="exportScope" value="filtered" checked style="accent-color:var(--accent)">
+        <div>
+          <div style="font-weight:600;color:var(--text)">Current filtered view</div>
+          <div style="color:var(--text-dim);font-size:12px;margin-top:2px">Includes only the analytes/rows currently visible in the results table (respects analyte selection, search, CV%, protocol, date range, and exclusions)</div>
+        </div>
+      </label>
+      <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:13px">
+        <input type="radio" name="exportScope" value="all" style="accent-color:var(--accent)">
+        <div>
+          <div style="font-weight:600;color:var(--text)">Full dataset</div>
+          <div style="color:var(--text-dim);font-size:12px;margin-top:2px">Includes all loaded data, ignoring current filters</div>
+        </div>
+      </label>
+      <div id="exportPdfPreview" style="margin-top:12px;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--text-dim);line-height:1.6"></div>
+      <div style="display:flex;gap:10px;margin-top:20px">
+        <button class="btn" id="exportPdfModalCancel" style="flex:1">Cancel</button>
+        <button class="btn btn-primary" id="exportPdfModalConfirm" style="flex:2">Export PDF</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- AI Insights Modal -->
 <div class="modal-overlay" id="insightsModalOverlay">
   <div class="modal" style="width:98vw;max-width:1500px;max-height:90vh">
@@ -2344,15 +2376,22 @@ function renderStats() {
   `;
 }
 
-function renderResultsTable() {
+// Returns resultsData with the on-screen table filters applied
+// (analyte multi-select, parameter search, CV% filter). Reads filter
+// state directly from the DOM so it stays in sync with what the user sees.
+function getVisibleResults() {
   const search = document.getElementById('filterSearch').value.toLowerCase();
   const cvFilter = document.getElementById('filterCV').value;
-
   let data = resultsData;
   if (selectedAnalytes.size > 0) data = data.filter(r => selectedAnalytes.has(r.parameter));
   if (search) data = data.filter(r => r.parameter.toLowerCase().includes(search));
   if (cvFilter === 'high') data = data.filter(r => r.combined.cv > 10);
   if (cvFilter === 'warn') data = data.filter(r => r.combined.cv > 5);
+  return data;
+}
+
+function renderResultsTable() {
+  const data = getVisibleResults();
 
   const instruments = ['AU/DxI-1', 'AU/DxI-2', 'AU/DxI-3', 'AU/DxI-4'];
   const instClasses = ['inst1', 'inst2', 'inst3', 'inst4'];
@@ -2747,8 +2786,29 @@ function isoToUK(iso) {
 // =============================================
 // EXPORT
 // =============================================
-function exportPDF() {
-  logUserActivity('export_pdf', `${resultsData.length} analyte groups`);
+function exportPDF(scope = 'all') {
+  // Determine which results and processed-data subset to render
+  const results = scope === 'filtered' ? getVisibleResults() : resultsData;
+  let processedSubset;
+  if (scope === 'filtered') {
+    const visibleParams = new Set(results.map(r => r.parameter));
+    processedSubset = processedData.filter(r => visibleParams.has(r.parameter));
+  } else {
+    processedSubset = processedData;
+  }
+
+  // Build a human-readable summary of active table-level filters (filtered scope only)
+  const activeFilterParts = [];
+  if (scope === 'filtered') {
+    const search = document.getElementById('filterSearch').value.trim();
+    const cvFilter = document.getElementById('filterCV').value;
+    if (selectedAnalytes.size > 0) activeFilterParts.push(`Analytes: ${selectedAnalytes.size} selected`);
+    if (search) activeFilterParts.push(`Search: "${search}"`);
+    if (cvFilter === 'high') activeFilterParts.push('CV% > 10');
+    if (cvFilter === 'warn') activeFilterParts.push('CV% > 5');
+  }
+
+  logUserActivity('export_pdf', `${results.length} analyte groups (${scope})`);
   try {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
@@ -2768,10 +2828,9 @@ function exportPDF() {
   doc.setFont('helvetica', 'normal');
   doc.text(`Generated: ${today}`, 14, 28);
 
-  const protocolCount = new Set(processedData.map(r => r.protocol)).size;
-  const parameterCount = new Set(processedData.map(r => r.parameter)).size;
+  const parameterCount = new Set(processedSubset.map(r => r.parameter)).size;
   const rejectedCount = rawData.filter(r => r.status === 'Manually rejected').length;
-  const datedRows = processedData.map(r => ({ str: r.date, t: parseDate(r.date).getTime() })).filter(d => d.t > 0);
+  const datedRows = processedSubset.map(r => ({ str: r.date, t: parseDate(r.date).getTime() })).filter(d => d.t > 0);
   const minDate = datedRows.length ? formatDate(datedRows.reduce((m, d) => d.t < m.t ? d : m).str) : 'N/A';
   const maxDate = datedRows.length ? formatDate(datedRows.reduce((m, d) => d.t > m.t ? d : m).str) : 'N/A';
 
@@ -2781,8 +2840,8 @@ function exportPDF() {
   const boxW = 60;
   const boxGap = 8;
   const summaryData = [
-    { label: 'Total Records', value: rawData.length.toLocaleString(), sub: `${processedData.length} after filtering` },
-    { label: 'Parameters', value: new Set(processedData.map(r => r.parameter)).size.toString(), sub: `${resultsData.length} analyte/level combos` },
+    { label: 'Total Records', value: rawData.length.toLocaleString(), sub: `${processedSubset.length} after filtering` },
+    { label: 'Parameters', value: parameterCount.toString(), sub: `${results.length} analyte/level combos` },
     { label: 'Rejected', value: rejectedCount.toString(), sub: 'manually rejected' },
     { label: 'Date Range', value: minDate, sub: `to ${maxDate}` },
   ];
@@ -2804,18 +2863,29 @@ function exportPDF() {
     doc.text(s.sub, x + 4, boxY + 24);
   });
 
+  // Filters-applied line (filtered scope only, when there is something to show).
+  // Sits between the summary boxes and the existing exclusions line; downstream
+  // content shifts down by extraTopY when the filters line is drawn.
+  let extraTopY = 0;
+  if (activeFilterParts.length > 0) {
+    doc.setFontSize(9);
+    doc.setTextColor(59, 130, 246);
+    doc.text('Filters applied: ' + activeFilterParts.join('  •  '), 14, boxY + 36);
+    extraTopY = 6;
+  }
+
   // Exclusions note
   if (exclusions.length > 0) {
     doc.setFontSize(9);
     doc.setTextColor(239, 68, 68);
-    doc.text('Active Exclusions: ' + exclusions.map(e => `${e.analyte}/${e.instrument}`).join(', '), 14, boxY + 38);
+    doc.text('Active Exclusions: ' + exclusions.map(e => `${e.analyte}/${e.instrument}`).join(', '), 14, boxY + 38 + extraTopY);
   }
 
   // --- Results Table ---
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
-  doc.text('Results Summary', 14, boxY + 48);
+  doc.text('Results Summary', 14, boxY + 48 + extraTopY);
 
   const tableHead = [
     [
@@ -2830,7 +2900,7 @@ function exportPDF() {
     ['Mean','SD','CV%','n','Mean','SD','CV%','n','Mean','SD','CV%','n','Mean','SD','CV%','n','Mean','SD','CV%','n']
   ];
 
-  const tableBody = resultsData.map(row => {
+  const tableBody = results.map(row => {
     const r = [row.parameter, row.level];
     const dp = /^(ca|mg|po4|calcium|magnesium|phosphate)$/i.test(row.parameter) ? 3 : 2;
     for (const inst of instruments) {
@@ -2853,7 +2923,7 @@ function exportPDF() {
   doc.autoTable({
     head: tableHead,
     body: tableBody,
-    startY: boxY + 52,
+    startY: boxY + 52 + extraTopY,
     theme: 'grid',
     styles: { fontSize: 5.5, cellPadding: 1.2, halign: 'center', lineColor: [200, 200, 200], lineWidth: 0.1 },
     headStyles: { fillColor: [30, 41, 59], textColor: 255, fontSize: 5.5, fontStyle: 'bold' },
@@ -2870,7 +2940,9 @@ function exportPDF() {
   });
 
 
-  doc.save(`QCAudit-Report-${new Date().toISOString().split('T')[0]}.pdf`);
+  const dateStr = new Date().toISOString().split('T')[0];
+  const suffix = scope === 'filtered' ? '-filtered' : '';
+  doc.save(`QCAudit-Report-${dateStr}${suffix}.pdf`);
   } catch(err) {
     console.error('PDF export error:', err);
     alert('Error generating PDF: ' + err.message);
@@ -3630,7 +3702,7 @@ function sortDetailTable(col) {
 }
 
 // Export & Reset
-document.getElementById('btnReport').addEventListener('click', exportPDF);
+document.getElementById('btnReport').addEventListener('click', openExportPdfModal);
 document.getElementById('btnExportXLSX').addEventListener('click', exportXLSX);
 document.getElementById('btnExportCSV').addEventListener('click', exportCSV);
 document.getElementById('btnReset').addEventListener('click', () => {
@@ -3837,6 +3909,43 @@ document.getElementById('saveModalConfirm').addEventListener('click', async () =
 
   btn.disabled = false;
   btn.textContent = 'Save Report';
+});
+
+// =============================================
+// EXPORT PDF — dialog
+// =============================================
+const exportPdfModalOverlay = document.getElementById('exportPdfModalOverlay');
+
+function updateExportPdfPreview() {
+  const scope = document.querySelector('input[name="exportScope"]:checked').value;
+  const total = resultsData.length;
+  const visible = scope === 'filtered' ? getVisibleResults().length : total;
+  const preview = document.getElementById('exportPdfPreview');
+  if (scope === 'filtered') {
+    preview.textContent = `${visible.toLocaleString()} of ${total.toLocaleString()} analyte/level rows will be included.`;
+  } else {
+    preview.textContent = `All ${total.toLocaleString()} analyte/level rows will be included.`;
+  }
+}
+
+function openExportPdfModal() {
+  // Default to filtered each time the modal opens (mirrors Save Report behaviour)
+  document.querySelector('input[name="exportScope"][value="filtered"]').checked = true;
+  updateExportPdfPreview();
+  exportPdfModalOverlay.classList.add('active');
+}
+
+document.querySelectorAll('input[name="exportScope"]').forEach(r =>
+  r.addEventListener('change', updateExportPdfPreview)
+);
+document.getElementById('exportPdfModalClose').addEventListener('click', () => exportPdfModalOverlay.classList.remove('active'));
+document.getElementById('exportPdfModalCancel').addEventListener('click', () => exportPdfModalOverlay.classList.remove('active'));
+exportPdfModalOverlay.addEventListener('click', e => { if (e.target === exportPdfModalOverlay) exportPdfModalOverlay.classList.remove('active'); });
+
+document.getElementById('exportPdfModalConfirm').addEventListener('click', () => {
+  const scope = document.querySelector('input[name="exportScope"]:checked').value;
+  exportPdfModalOverlay.classList.remove('active');
+  exportPDF(scope);
 });
 
 // Load Report - open modal
