@@ -2786,8 +2786,29 @@ function isoToUK(iso) {
 // =============================================
 // EXPORT
 // =============================================
-function exportPDF() {
-  logUserActivity('export_pdf', `${resultsData.length} analyte groups`);
+function exportPDF(scope = 'all') {
+  // Determine which results and processed-data subset to render
+  const results = scope === 'filtered' ? getVisibleResults() : resultsData;
+  let processedSubset;
+  if (scope === 'filtered') {
+    const visibleParams = new Set(results.map(r => r.parameter));
+    processedSubset = processedData.filter(r => visibleParams.has(r.parameter));
+  } else {
+    processedSubset = processedData;
+  }
+
+  // Build a human-readable summary of active table-level filters (filtered scope only)
+  const activeFilterParts = [];
+  if (scope === 'filtered') {
+    const search = document.getElementById('filterSearch').value.trim();
+    const cvFilter = document.getElementById('filterCV').value;
+    if (selectedAnalytes.size > 0) activeFilterParts.push(`Analytes: ${selectedAnalytes.size} selected`);
+    if (search) activeFilterParts.push(`Search: "${search}"`);
+    if (cvFilter === 'high') activeFilterParts.push('CV% > 10');
+    if (cvFilter === 'warn') activeFilterParts.push('CV% > 5');
+  }
+
+  logUserActivity('export_pdf', `${results.length} analyte groups (${scope})`);
   try {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
@@ -2807,10 +2828,9 @@ function exportPDF() {
   doc.setFont('helvetica', 'normal');
   doc.text(`Generated: ${today}`, 14, 28);
 
-  const protocolCount = new Set(processedData.map(r => r.protocol)).size;
-  const parameterCount = new Set(processedData.map(r => r.parameter)).size;
+  const parameterCount = new Set(processedSubset.map(r => r.parameter)).size;
   const rejectedCount = rawData.filter(r => r.status === 'Manually rejected').length;
-  const datedRows = processedData.map(r => ({ str: r.date, t: parseDate(r.date).getTime() })).filter(d => d.t > 0);
+  const datedRows = processedSubset.map(r => ({ str: r.date, t: parseDate(r.date).getTime() })).filter(d => d.t > 0);
   const minDate = datedRows.length ? formatDate(datedRows.reduce((m, d) => d.t < m.t ? d : m).str) : 'N/A';
   const maxDate = datedRows.length ? formatDate(datedRows.reduce((m, d) => d.t > m.t ? d : m).str) : 'N/A';
 
@@ -2820,8 +2840,8 @@ function exportPDF() {
   const boxW = 60;
   const boxGap = 8;
   const summaryData = [
-    { label: 'Total Records', value: rawData.length.toLocaleString(), sub: `${processedData.length} after filtering` },
-    { label: 'Parameters', value: new Set(processedData.map(r => r.parameter)).size.toString(), sub: `${resultsData.length} analyte/level combos` },
+    { label: 'Total Records', value: rawData.length.toLocaleString(), sub: `${processedSubset.length} after filtering` },
+    { label: 'Parameters', value: parameterCount.toString(), sub: `${results.length} analyte/level combos` },
     { label: 'Rejected', value: rejectedCount.toString(), sub: 'manually rejected' },
     { label: 'Date Range', value: minDate, sub: `to ${maxDate}` },
   ];
@@ -2843,18 +2863,29 @@ function exportPDF() {
     doc.text(s.sub, x + 4, boxY + 24);
   });
 
+  // Filters-applied line (filtered scope only, when there is something to show).
+  // Sits between the summary boxes and the existing exclusions line; downstream
+  // content shifts down by extraTopY when the filters line is drawn.
+  let extraTopY = 0;
+  if (activeFilterParts.length > 0) {
+    doc.setFontSize(9);
+    doc.setTextColor(59, 130, 246);
+    doc.text('Filters applied: ' + activeFilterParts.join('  •  '), 14, boxY + 36);
+    extraTopY = 6;
+  }
+
   // Exclusions note
   if (exclusions.length > 0) {
     doc.setFontSize(9);
     doc.setTextColor(239, 68, 68);
-    doc.text('Active Exclusions: ' + exclusions.map(e => `${e.analyte}/${e.instrument}`).join(', '), 14, boxY + 38);
+    doc.text('Active Exclusions: ' + exclusions.map(e => `${e.analyte}/${e.instrument}`).join(', '), 14, boxY + 38 + extraTopY);
   }
 
   // --- Results Table ---
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
-  doc.text('Results Summary', 14, boxY + 48);
+  doc.text('Results Summary', 14, boxY + 48 + extraTopY);
 
   const tableHead = [
     [
@@ -2869,7 +2900,7 @@ function exportPDF() {
     ['Mean','SD','CV%','n','Mean','SD','CV%','n','Mean','SD','CV%','n','Mean','SD','CV%','n','Mean','SD','CV%','n']
   ];
 
-  const tableBody = resultsData.map(row => {
+  const tableBody = results.map(row => {
     const r = [row.parameter, row.level];
     const dp = /^(ca|mg|po4|calcium|magnesium|phosphate)$/i.test(row.parameter) ? 3 : 2;
     for (const inst of instruments) {
@@ -2892,7 +2923,7 @@ function exportPDF() {
   doc.autoTable({
     head: tableHead,
     body: tableBody,
-    startY: boxY + 52,
+    startY: boxY + 52 + extraTopY,
     theme: 'grid',
     styles: { fontSize: 5.5, cellPadding: 1.2, halign: 'center', lineColor: [200, 200, 200], lineWidth: 0.1 },
     headStyles: { fillColor: [30, 41, 59], textColor: 255, fontSize: 5.5, fontStyle: 'bold' },
@@ -2909,7 +2940,9 @@ function exportPDF() {
   });
 
 
-  doc.save(`QCAudit-Report-${new Date().toISOString().split('T')[0]}.pdf`);
+  const dateStr = new Date().toISOString().split('T')[0];
+  const suffix = scope === 'filtered' ? '-filtered' : '';
+  doc.save(`QCAudit-Report-${dateStr}${suffix}.pdf`);
   } catch(err) {
     console.error('PDF export error:', err);
     alert('Error generating PDF: ' + err.message);
