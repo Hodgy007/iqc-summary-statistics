@@ -2344,15 +2344,22 @@ function renderStats() {
   `;
 }
 
-function renderResultsTable() {
+// Returns resultsData with the on-screen table filters applied
+// (analyte multi-select, parameter search, CV% filter). Reads filter
+// state directly from the DOM so it stays in sync with what the user sees.
+function getVisibleResults() {
   const search = document.getElementById('filterSearch').value.toLowerCase();
   const cvFilter = document.getElementById('filterCV').value;
-
   let data = resultsData;
   if (selectedAnalytes.size > 0) data = data.filter(r => selectedAnalytes.has(r.parameter));
   if (search) data = data.filter(r => r.parameter.toLowerCase().includes(search));
   if (cvFilter === 'high') data = data.filter(r => r.combined.cv > 10);
   if (cvFilter === 'warn') data = data.filter(r => r.combined.cv > 5);
+  return data;
+}
+
+function renderResultsTable() {
+  const data = getVisibleResults();
 
   const instruments = ['AU/DxI-1', 'AU/DxI-2', 'AU/DxI-3', 'AU/DxI-4'];
   const instClasses = ['inst1', 'inst2', 'inst3', 'inst4'];
