@@ -2736,7 +2736,9 @@ function renderCVChart() {
     label: inst,
     data: topParams.map(p => {
       const row = rowsAtLevel.find(r => r.parameter === p);
-      return row && row[inst] ? row[inst].cv : 0;
+      // null (not 0) so Chart.js draws no bar for an instrument that ran no
+      // QC at this level, rather than a misleading 0% CV.
+      return row && row[inst] && row[inst].count > 0 ? row[inst].cv : null;
     }),
     backgroundColor: colors[i],
     borderWidth: 0,
@@ -4082,6 +4084,10 @@ async function loadReport(id) {
     resultsData = report.results_data || [];
     rawData = processedData;
     exclusions = report.exclusions || [];
+    // Clear point-removals from any previous dataset: the loaded rows are
+    // assigned fresh sequential _ids above, so stale ids would otherwise
+    // silently drop unrelated rows from this report.
+    deletedPointIds.clear();
     const savedFilters = report.filters || {};
 
     // Restore UI

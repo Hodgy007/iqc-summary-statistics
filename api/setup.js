@@ -2,16 +2,28 @@ import { neon } from '@neondatabase/serverless';
 import { requireAuth } from './lib/auth.js';
 
 export default async function handler(req, res) {
+  if (req.method !== 'GET' && req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
   const sql = neon(process.env.DATABASE_URL);
 
   // First-boot bootstrap: if the users table doesn't exist yet, nobody can
   // authenticate, so allow setup to run unauthenticated to create the schema.
-  // Once users exists, setup requires an admin as before.
+  // Once users exists, setup requires an admin as before. Only a genuine
+  // "relation does not exist" (Postgres 42P01) counts as first boot — any
+  // other error (timeout, permission, connection blip) must NOT drop the
+  // admin check, so it is surfaced as a 500 instead.
   let usersTableExists = true;
   try {
     await sql`SELECT 1 FROM users LIMIT 1`;
-  } catch {
-    usersTableExists = false;
+  } catch (err) {
+    if (err && err.code === '42P01') {
+      usersTableExists = false;
+    } else {
+      console.error('Setup probe error:', err);
+      return res.status(500).json({ error: 'Database setup failed' });
+    }
   }
 
   let user = null;

@@ -105,14 +105,16 @@ describe('Login API', () => {
     expect(res.statusCode).toBe(401);
   });
 
-  test('rejects pending accounts with generic message to prevent timing oracle', async () => {
-    mockSql.mockResolvedValueOnce([{ id: 1, email: 'test@test.com', password_hash: 'hash', status: 'pending' }]);
+  test('issues a session for pending accounts so the client can show the pending screen', async () => {
+    mockSql.mockResolvedValueOnce([{ id: 1, email: 'test@test.com', password_hash: 'hash', status: 'pending', role: 'user', permission: 'view_only' }]);
     mockCompare.mockResolvedValueOnce(true);
+    mockSign.mockResolvedValueOnce('jwt-token');
     const req = createMockReq({ method: 'POST', body: { email: 'test@test.com', password: 'correct' } });
     const res = createMockRes();
     await handler(req, res);
-    expect(res.statusCode).toBe(401);
-    expect(res.body.error).toBe('Invalid email or password');
+    expect(res.statusCode).toBe(200);
+    expect(res.body.pending).toBe(true);
+    expect(res.headers['Set-Cookie']).toContain('HttpOnly');
   });
 
   test('rejects denied accounts with generic message to prevent timing oracle', async () => {
