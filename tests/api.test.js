@@ -472,6 +472,60 @@ describe('Reports IDOR Protection', () => {
 });
 
 // =============================================
+// Reports: save fallback only on missing user_id column (IDOR guard)
+// =============================================
+describe('Reports save user_id fallback', () => {
+  let handler;
+
+  beforeEach(() => {
+    jest.resetModules();
+    jest.clearAllMocks();
+    handler = require('../api/reports.js').default;
+  });
+
+  const authUser = { id: 2, email: 'u@test.com', role: 'user', status: 'approved', permission: 'full_access' };
+
+  test('surfaces a non-column insert error instead of creating an unowned row', async () => {
+    mockJwtVerify.mockResolvedValueOnce({ payload: { id: 2 } });
+    mockSql
+      .mockResolvedValueOnce([authUser])            // requireAuth
+      .mockRejectedValueOnce(Object.assign(new Error('deadlock'), { code: '40P01' })); // insert with user_id
+
+    const req = createMockReq({
+      method: 'POST',
+      headers: { cookie: 'token=user-jwt' },
+      body: { name: 'R', raw_data_gz: 'abc' },
+    });
+    const res = createMockRes();
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(500);
+    // Must NOT have attempted the column-less fallback insert
+    expect(mockSql).toHaveBeenCalledTimes(2);
+  });
+
+  test('falls back to a column-less insert when user_id is genuinely absent', async () => {
+    mockJwtVerify.mockResolvedValueOnce({ payload: { id: 2 } });
+    mockSql
+      .mockResolvedValueOnce([authUser])            // requireAuth
+      .mockRejectedValueOnce(Object.assign(new Error('column "user_id" does not exist'), { code: '42703' }))
+      .mockResolvedValueOnce([{ id: 7, name: 'R', created_at: 'now' }]) // fallback insert
+      .mockResolvedValue([]);                        // logActivity
+
+    const req = createMockReq({
+      method: 'POST',
+      headers: { cookie: 'token=user-jwt' },
+      body: { name: 'R', raw_data_gz: 'abc' },
+    });
+    const res = createMockRes();
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(201);
+    expect(res.body.id).toBe(7);
+  });
+});
+
+// =============================================
 // Reports: legacy chunk PATCH (regression for undefined-variable crash)
 // =============================================
 describe('Reports legacy chunk PATCH', () => {

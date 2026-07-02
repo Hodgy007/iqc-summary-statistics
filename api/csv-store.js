@@ -36,8 +36,11 @@ export default async function handler(req, res) {
           RETURNING id, name, file_size, created_at
         `;
       } catch (insertErr) {
-        // Fallback for installations where the user_id column doesn't exist yet
-        console.error('CSV insert with user_id failed, retrying without:', insertErr.message || insertErr);
+        // Only fall back when the user_id column is genuinely absent (42703);
+        // any other error must not silently create a NULL-owner file that
+        // bypasses the delete ownership check.
+        if (insertErr?.code !== '42703') throw insertErr;
+        console.error('csv_files.user_id column missing, inserting without owner:', insertErr.message || insertErr);
         rows = await sql`
           INSERT INTO csv_files (name, compressed_data, file_size)
           VALUES (${name}, ${data_gz}, ${file_size || 0})

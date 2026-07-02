@@ -148,6 +148,7 @@ function parseDateParts(datePart) {
   const p = datePart.split(sep);
   if (p.length !== 3) return null;
   const a = parseInt(p[0], 10), b = parseInt(p[1], 10), c = parseInt(p[2], 10);
+  if (p[0].length === 4) return [a, b - 1, c]; // ISO YYYY-MM-DD
   if (a > 12) return [c, b - 1, a];          // DD-MM-YYYY
   if (b > 12) return [c, a - 1, b];          // MM/DD/YYYY
   return sep === '-' ? [c, b - 1, a] : [c, a - 1, b]; // ambiguous: use separator

@@ -2779,14 +2779,16 @@ function renderCVChart() {
   });
 }
 
-// Returns [year, month0, day] from a date string part, auto-detecting DD-MM-YYYY vs MM/DD/YYYY.
-// Detection: if first segment > 12 → DD-MM-YYYY; if second segment > 12 → MM/DD/YYYY;
-// otherwise fall back to separator (dash = UK DD-MM-YYYY, slash = US MM/DD/YYYY).
+// Returns [year, month0, day] from a date string part, auto-detecting the layout.
+// A 4-digit first segment is treated as ISO YYYY-MM-DD; otherwise: if first
+// segment > 12 → DD-MM-YYYY; if second segment > 12 → MM/DD/YYYY; else fall back
+// to separator (dash = UK DD-MM-YYYY, slash = US MM/DD/YYYY).
 function parseDateParts(datePart) {
   const sep = datePart.includes('/') ? '/' : '-';
   const p = datePart.split(sep);
   if (p.length !== 3) return null;
   const a = parseInt(p[0], 10), b = parseInt(p[1], 10), c = parseInt(p[2], 10);
+  if (p[0].length === 4) return [a, b - 1, c]; // ISO YYYY-MM-DD
   if (a > 12) return [c, b - 1, a];          // DD-MM-YYYY
   if (b > 12) return [c, a - 1, b];          // MM/DD/YYYY
   return sep === '-' ? [c, b - 1, a] : [c, a - 1, b]; // ambiguous: use separator
