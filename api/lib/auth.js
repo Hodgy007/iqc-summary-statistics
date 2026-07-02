@@ -22,7 +22,7 @@ export async function requireAuth(req, res, options = {}) {
 
   try {
     const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-    const { payload } = await jwtVerify(token, secret);
+    const { payload } = await jwtVerify(token, secret, { algorithms: ['HS256'] });
 
     // Re-fetch user from DB for current status/permissions
     const sql = neon(process.env.DATABASE_URL);
@@ -34,7 +34,9 @@ export async function requireAuth(req, res, options = {}) {
 
     const user = rows[0];
 
-    if (user.status !== 'approved') {
+    // allowPending lets pending (but never denied) accounts through so callers
+    // like /api/auth/me can report the pending state to the frontend
+    if (user.status !== 'approved' && !(options.allowPending && user.status === 'pending')) {
       res.status(403).json({ error: 'Account not approved' });
       return null;
     }

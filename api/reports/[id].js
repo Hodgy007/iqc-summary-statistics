@@ -39,7 +39,7 @@ export default async function handler(req, res) {
         // report_chunks table may not exist yet - use inline data
       }
 
-      logActivity(user.id, 'report_load', `Loaded report: ${report.name}`);
+      await logActivity(user.id, 'report_load', `Loaded report: ${report.name}`);
       res.status(200).json(report);
     } catch (err) {
       console.error('Report fetch error:', err);
@@ -59,7 +59,7 @@ export default async function handler(req, res) {
         return res.status(403).json({ error: 'You can only delete your own reports' });
       }
       await sql`DELETE FROM reports WHERE id = ${id}`;
-      logActivity(user.id, 'report_delete', `Deleted report ID: ${id}`);
+      await logActivity(user.id, 'report_delete', `Deleted report ID: ${id}`);
       res.status(200).json({ success: true });
     } catch (err) {
       console.error('Report delete error:', err);
@@ -100,10 +100,10 @@ export default async function handler(req, res) {
         VALUES (${id}, ${cType}, ${chunk_index || 0}, ${JSON.stringify(cData)})
       `;
 
-      res.status(200).json({ id, chunk_type: chunkType, chunk_index: idx });
+      res.status(200).json({ id, chunk_type: cType, chunk_index: chunk_index || 0 });
     } catch (err) {
       console.error('Report chunk update error:', err);
-      res.status(500).json({ error: 'Failed to append chunk', detail: err.message });
+      res.status(500).json({ error: 'Failed to append chunk' });
     }
   } else {
     res.status(405).json({ error: 'Method not allowed' });

@@ -43,13 +43,15 @@ export default async function handler(req, res) {
             RETURNING id, name, created_at
           `;
         } catch (insertErr) {
+          // Fallback for installations where the user_id column doesn't exist yet
+          console.error('Report insert with user_id failed, retrying without:', insertErr.message || insertErr);
           rows = await sql`
             INSERT INTO reports (name, compressed_data)
             VALUES (${name}, ${bundle})
             RETURNING id, name, created_at
           `;
         }
-        logActivity(user.id, 'report_save', `Saved report: ${name}`);
+        await logActivity(user.id, 'report_save', `Saved report: ${name}`);
         return res.status(201).json(rows[0]);
       }
 
@@ -62,17 +64,19 @@ export default async function handler(req, res) {
           RETURNING id, name, created_at
         `;
       } catch (insertErr) {
+        // Fallback for installations where the user_id column doesn't exist yet
+        console.error('Report insert with user_id failed, retrying without:', insertErr.message || insertErr);
         rows = await sql`
           INSERT INTO reports (name, raw_data, results_data, exclusions, filters)
           VALUES (${name}, ${JSON.stringify(raw_data || [])}::jsonb, ${JSON.stringify(results_data || [])}::jsonb, ${JSON.stringify(exclusions || [])}::jsonb, ${JSON.stringify(filters || {})}::jsonb)
           RETURNING id, name, created_at
         `;
       }
-      logActivity(user.id, 'report_save', `Saved report: ${name}`);
+      await logActivity(user.id, 'report_save', `Saved report: ${name}`);
       res.status(201).json(rows[0]);
     } catch (err) {
       console.error('Report save error:', err.message || err);
-      res.status(500).json({ error: 'Failed to save report', detail: err.message });
+      res.status(500).json({ error: 'Failed to save report' });
     }
   } else {
     res.status(405).json({ error: 'Method not allowed' });

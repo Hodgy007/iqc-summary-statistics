@@ -36,17 +36,19 @@ export default async function handler(req, res) {
           RETURNING id, name, file_size, created_at
         `;
       } catch (insertErr) {
+        // Fallback for installations where the user_id column doesn't exist yet
+        console.error('CSV insert with user_id failed, retrying without:', insertErr.message || insertErr);
         rows = await sql`
           INSERT INTO csv_files (name, compressed_data, file_size)
           VALUES (${name}, ${data_gz}, ${file_size || 0})
           RETURNING id, name, file_size, created_at
         `;
       }
-      logActivity(user.id, 'csv_upload', `Uploaded CSV: ${name}`);
+      await logActivity(user.id, 'csv_upload', `Uploaded CSV: ${name}`);
       res.status(201).json(rows[0]);
     } catch (err) {
       console.error('CSV store upload error:', err.message || err);
-      res.status(500).json({ error: 'Failed to upload CSV file', detail: err.message });
+      res.status(500).json({ error: 'Failed to upload CSV file' });
     }
   } else {
     res.status(405).json({ error: 'Method not allowed' });

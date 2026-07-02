@@ -1,9 +1,12 @@
+const fs = require('fs');
+const path = require('path');
 const {
   parseCSV,
   processData,
   computeStats,
   buildResults,
   parseDate,
+  escapeHtml,
   INSTRUMENTS_MAP,
   EXCLUDED_PROTOCOLS,
   LEVEL_OVERRIDE_PROTOCOLS,
@@ -376,15 +379,29 @@ describe('buildResults', () => {
 // parseDate
 // =============================================
 describe('parseDate', () => {
-  test('parses dd/mm/yyyy format', () => {
+  test('detects DD/MM/YYYY when day segment > 12', () => {
     const d = parseDate('15/03/2025');
     expect(d.getDate()).toBe(15);
     expect(d.getMonth()).toBe(2); // March = 2 (zero-indexed)
     expect(d.getFullYear()).toBe(2025);
   });
 
-  test('parses dd/mm/yyyy with time portion', () => {
+  test('detects MM/DD/YYYY when second segment > 12', () => {
+    const d = parseDate('03/15/2025');
+    expect(d.getDate()).toBe(15);
+    expect(d.getMonth()).toBe(2);
+    expect(d.getFullYear()).toBe(2025);
+  });
+
+  test('ambiguous slash dates fall back to US MM/DD/YYYY', () => {
     const d = parseDate('01/06/2025 14:30:00');
+    expect(d.getDate()).toBe(6);
+    expect(d.getMonth()).toBe(0); // January
+    expect(d.getFullYear()).toBe(2025);
+  });
+
+  test('ambiguous dash dates fall back to UK DD-MM-YYYY', () => {
+    const d = parseDate('01-06-2025');
     expect(d.getDate()).toBe(1);
     expect(d.getMonth()).toBe(5); // June
     expect(d.getFullYear()).toBe(2025);
@@ -394,10 +411,57 @@ describe('parseDate', () => {
     expect(parseDate(null).getTime()).toBe(new Date(0).getTime());
     expect(parseDate('').getTime()).toBe(new Date(0).getTime());
   });
+});
 
-  test('falls back to Date constructor for non-dd/mm/yyyy', () => {
-    const d = parseDate('2025-03-15');
-    expect(d.getFullYear()).toBe(2025);
+// =============================================
+// escapeHtml
+// =============================================
+describe('escapeHtml', () => {
+  test('escapes angle brackets and ampersands', () => {
+    expect(escapeHtml('<script>&')).toBe('&lt;script&gt;&amp;');
+  });
+
+  test('escapes single and double quotes (attribute safety)', () => {
+    expect(escapeHtml(`O'Neil "QC"`)).toBe('O&#39;Neil &quot;QC&quot;');
+  });
+
+  test('returns empty string for null/undefined', () => {
+    expect(escapeHtml(null)).toBe('');
+    expect(escapeHtml(undefined)).toBe('');
+  });
+
+  test('stringifies non-string input', () => {
+    expect(escapeHtml(42)).toBe('42');
+  });
+});
+
+// =============================================
+// Drift guard: test copy must match public/index.html
+// =============================================
+describe('frontend-logic stays in sync with index.html', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+
+  function extractSet(name) {
+    const m = html.match(new RegExp(`const ${name} = new Set\\(\\[([\\s\\S]*?)\\]\\);`));
+    if (!m) throw new Error(`${name} not found in index.html`);
+    return new Set([...m[1].matchAll(/'((?:[^'\\]|\\.)*)'/g)].map(x => x[1]));
+  }
+
+  test('EXCLUDED_PROTOCOLS matches', () => {
+    expect(EXCLUDED_PROTOCOLS).toEqual(extractSet('EXCLUDED_PROTOCOLS'));
+  });
+
+  test('LEVEL_OVERRIDE_PROTOCOLS matches', () => {
+    expect(LEVEL_OVERRIDE_PROTOCOLS).toEqual(extractSet('LEVEL_OVERRIDE_PROTOCOLS'));
+  });
+
+  test('INSTRUMENTS_MAP matches', () => {
+    const m = html.match(/const INSTRUMENTS_MAP = \{([\s\S]*?)\};/);
+    expect(m).not.toBeNull();
+    const pairs = Object.fromEntries(
+      [...m[1].matchAll(/'([^']+)':\s*'([^']+)'/g)].map(x => [x[1], x[2]])
+    );
+    expect(INSTRUMENTS_MAP).toEqual(pairs);
   });
 });
 
