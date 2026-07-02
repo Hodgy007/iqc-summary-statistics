@@ -10,8 +10,12 @@ const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 
 function checkRateLimit(ip) {
   const now = Date.now();
+  // Prune expired entries so the map can't grow unboundedly in a warm instance
+  for (const [key, rec] of registerAttempts) {
+    if (now - rec.firstAttempt > WINDOW_MS) registerAttempts.delete(key);
+  }
   const record = registerAttempts.get(ip);
-  if (!record || now - record.firstAttempt > WINDOW_MS) {
+  if (!record) {
     registerAttempts.set(ip, { count: 1, firstAttempt: now });
     return true;
   }
@@ -63,7 +67,7 @@ export default async function handler(req, res) {
         .sign(secret);
 
       res.setHeader('Set-Cookie', `token=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800`);
-      logActivity(user.id, 'register', 'First user registered as admin');
+      await logActivity(user.id, 'register', 'First user registered as admin');
       return res.status(201).json({ success: true, user: { email: user.email, role: user.role, permission: user.permission } });
     }
 

@@ -2,12 +2,37 @@ import { neon } from '@neondatabase/serverless';
 import { requireAuth } from './lib/auth.js';
 
 export default async function handler(req, res) {
-  const user = await requireAuth(req, res, { role: 'admin' });
-  if (!user) return;
-
   const sql = neon(process.env.DATABASE_URL);
 
+  // First-boot bootstrap: if the users table doesn't exist yet, nobody can
+  // authenticate, so allow setup to run unauthenticated to create the schema.
+  // Once users exists, setup requires an admin as before.
+  let usersTableExists = true;
   try {
+    await sql`SELECT 1 FROM users LIMIT 1`;
+  } catch {
+    usersTableExists = false;
+  }
+
+  let user = null;
+  if (usersTableExists) {
+    user = await requireAuth(req, res, { role: 'admin' });
+    if (!user) return;
+  }
+
+  try {
+    // users must be created first: reports and activity_log reference it
+    await sql`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'user',
+        status TEXT NOT NULL DEFAULT 'pending',
+        permission TEXT NOT NULL DEFAULT 'view_only',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
     await sql`
       CREATE TABLE IF NOT EXISTS reports (
         id SERIAL PRIMARY KEY,
@@ -18,17 +43,6 @@ export default async function handler(req, res) {
         results_data JSONB,
         exclusions JSONB DEFAULT '[]',
         filters JSONB DEFAULT '{}'
-      )
-    `;
-    await sql`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        email TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        role TEXT NOT NULL DEFAULT 'user',
-        status TEXT NOT NULL DEFAULT 'pending',
-        permission TEXT NOT NULL DEFAULT 'view_only',
-        created_at TIMESTAMPTZ DEFAULT NOW()
       )
     `;
     await sql`
@@ -81,6 +95,12 @@ export default async function handler(req, res) {
       EXCEPTION WHEN others THEN NULL;
       END $$
     `;
+
+    if (!user) {
+      // First boot: schema created, no user to promote or reports to clean
+      return res.status(200).json({ success: true, message: 'Database setup complete. Register the first account to become admin.' });
+    }
+
     // Promote the calling user to admin with full_access
     await sql`
       UPDATE users SET role = 'admin', status = 'approved', permission = 'full_access'

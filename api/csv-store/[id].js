@@ -15,7 +15,7 @@ export default async function handler(req, res) {
       const rows = await sql`SELECT id, name, compressed_data, file_size, created_at FROM csv_files WHERE id = ${id}`;
       if (rows.length === 0) return res.status(404).json({ error: 'CSV file not found' });
       const file = rows[0];
-      logActivity(user.id, 'csv_download', `Downloaded CSV: ${file.name}`);
+      await logActivity(user.id, 'csv_download', `Downloaded CSV: ${file.name}`);
       res.status(200).json(file);
     } catch (err) {
       console.error('CSV fetch error:', err);
@@ -34,7 +34,7 @@ export default async function handler(req, res) {
         return res.status(403).json({ error: 'You can only delete your own files' });
       }
       await sql`DELETE FROM csv_files WHERE id = ${id}`;
-      logActivity(user.id, 'csv_delete', `Deleted CSV: ${rows[0].name}`);
+      await logActivity(user.id, 'csv_delete', `Deleted CSV: ${rows[0].name}`);
       res.status(200).json({ success: true });
     } catch (err) {
       console.error('CSV delete error:', err);

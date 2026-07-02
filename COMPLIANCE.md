@@ -84,6 +84,7 @@ All persistent data is stored in Neon's managed PostgreSQL service:
 - **SQL injection prevention** — All database queries use parameterised tagged templates (Neon driver). No string concatenation in SQL construction.
 - **CSRF protection** — SameSite=Strict cookie policy blocks cross-origin request forgery. All state-changing endpoints are POST/PUT/DELETE only.
 - **Content Security Policy** — CSP meta tag restricts script execution to `'self'` and explicitly listed CDN origins. Blocks inline script injection from unknown sources.
+- **Subresource Integrity (SRI)** — All CDN scripts carry `integrity` hashes, so a compromised or tampered CDN response is refused by the browser.
 - **File upload validation** — CSV file extension enforcement and 50MB size limit. Files are processed entirely client-side; no server-side file storage.
 - **Error handling** — Generic error messages returned to clients. Internal error details logged server-side only, preventing information leakage of database structure, connection strings, or stack traces.
 
@@ -117,9 +118,8 @@ All persistent data is stored in Neon's managed PostgreSQL service:
 
 | Limitation | Risk | Mitigation |
 |-----------|------|------------|
-| No SRI on CDN scripts | CDN compromise could inject malicious JS | CSP restricts script origins; CDN providers (jsDelivr, Cloudflare) maintain integrity controls |
 | No MFA | Single-factor auth only | Mitigated by admin approval workflow, rate limiting, and HttpOnly tokens |
-| In-memory rate limiting | Resets on serverless cold start | Acceptable for current scale; Redis-backed limiter recommended for high-traffic deployments |
+| In-memory rate limiting | Resets on serverless cold start and is per-instance, so limits are not shared across concurrent function instances | Acceptable for current scale; Redis-backed limiter recommended for high-traffic deployments |
 | 7-day JWT expiry | Extended window if token compromised | Every request re-checks user status from DB; account suspension is effective immediately |
 | Activity log in application DB | Log retention tied to database lifecycle | Consider exporting logs to external SIEM for long-term retention and tamper resistance |
 
@@ -132,7 +132,6 @@ All persistent data is stored in Neon's managed PostgreSQL service:
 | Multi-factor authentication | Eliminates single-factor credential risk | Enterprise / NHS Trust deployments |
 | External log export (SIEM) | Tamper-resistant audit trail with long-term retention | ISO 15189 full compliance / forensic requirements |
 | Redis-backed rate limiting | Persistent rate limiting across cold starts | High-availability deployments |
-| Subresource Integrity (SRI) | Hardens against CDN supply-chain attacks | All production deployments |
 | Penetration testing | Independent validation of security posture | Before production deployment |
 | VPC peering (Neon Enterprise) | Eliminates public internet database exposure | Sensitive environments |
 

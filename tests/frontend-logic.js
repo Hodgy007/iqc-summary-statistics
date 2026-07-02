@@ -22,6 +22,8 @@ const EXCLUDED_PROTOCOLS = new Set([
   'DXI 3 M NEW LAC', 'DXI 4 M NEW LAC', 'ACCURUN1', 'ACCURUN25',
   'ACCURUN52', 'HAVIgMqc', 'HBcAbQC', 'HBsAbQC', 'HBsAgQC',
   'HCVABV3QC', 'HIVCoQC', 'QBLUE', 'QBLUE-SYPH', 'QHEPA',
+  'QHIV2', 'QHIVp24', 'RUBELLAIgGQC', 'SYPHQC', 'I_HCG',
+  'H_MCH', 'H_MCHC', 'H_MCV', 'H_WBC',
 ]);
 
 const LEVEL_OVERRIDE_PROTOCOLS = new Set([
@@ -138,13 +140,31 @@ function buildResults(data) {
   return results;
 }
 
+// Returns [year, month0, day] from a date string part, auto-detecting DD-MM-YYYY vs MM/DD/YYYY.
+// Detection: if first segment > 12 → DD-MM-YYYY; if second segment > 12 → MM/DD/YYYY;
+// otherwise fall back to separator (dash = UK DD-MM-YYYY, slash = US MM/DD/YYYY).
+function parseDateParts(datePart) {
+  const sep = datePart.includes('/') ? '/' : '-';
+  const p = datePart.split(sep);
+  if (p.length !== 3) return null;
+  const a = parseInt(p[0], 10), b = parseInt(p[1], 10), c = parseInt(p[2], 10);
+  if (a > 12) return [c, b - 1, a];          // DD-MM-YYYY
+  if (b > 12) return [c, a - 1, b];          // MM/DD/YYYY
+  return sep === '-' ? [c, b - 1, a] : [c, a - 1, b]; // ambiguous: use separator
+}
+
 function parseDate(dateStr) {
   if (!dateStr) return new Date(0);
-  const parts = dateStr.split(' ')[0].split('/');
-  if (parts.length === 3) {
-    return new Date(parts[2], parts[1] - 1, parts[0]);
-  }
+  const parts = parseDateParts(dateStr.split(' ')[0]);
+  if (parts) return new Date(...parts);
   return new Date(dateStr);
+}
+
+const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+function escapeHtml(str) {
+  if (str == null) return '';
+  // Escapes quotes as well as &<> so values are safe inside HTML attributes
+  return String(str).replace(/[&<>"']/g, ch => HTML_ESCAPES[ch]);
 }
 
 module.exports = {
@@ -152,7 +172,9 @@ module.exports = {
   processData,
   computeStats,
   buildResults,
+  parseDateParts,
   parseDate,
+  escapeHtml,
   INSTRUMENTS_MAP,
   EXCLUDED_PROTOCOLS,
   LEVEL_OVERRIDE_PROTOCOLS,

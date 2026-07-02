@@ -26,7 +26,7 @@ export default async function handler(req, res) {
     const hash = await bcrypt.hash(newPassword, 10);
     await sql`UPDATE users SET password_hash = ${hash} WHERE id = ${userId}`;
 
-    logActivity(user.id, 'password_reset', `Reset password for user: ${target[0].email}`);
+    await logActivity(user.id, 'password_reset', `Reset password for user: ${target[0].email}`);
     res.status(200).json({ success: true });
   } catch (err) {
     console.error('Password reset error:', err);

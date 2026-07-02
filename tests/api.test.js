@@ -286,6 +286,29 @@ describe('Me API', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body.user.email).toBe('test@test.com');
   });
+
+  test('returns pending status so the frontend can show the pending screen', async () => {
+    mockJwtVerify.mockResolvedValueOnce({ payload: { id: 3 } });
+    mockSql.mockResolvedValueOnce([{ id: 3, email: 'new@test.com', role: 'user', status: 'pending', permission: 'view_only' }]);
+
+    const req = createMockReq({ method: 'GET', headers: { cookie: 'token=valid-jwt' } });
+    const res = createMockRes();
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.user.status).toBe('pending');
+  });
+
+  test('still rejects denied accounts', async () => {
+    mockJwtVerify.mockResolvedValueOnce({ payload: { id: 4 } });
+    mockSql.mockResolvedValueOnce([{ id: 4, email: 'denied@test.com', role: 'user', status: 'denied', permission: 'view_only' }]);
+
+    const req = createMockReq({ method: 'GET', headers: { cookie: 'token=valid-jwt' } });
+    const res = createMockRes();
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(403);
+  });
 });
 
 // =============================================
@@ -443,5 +466,38 @@ describe('Reports IDOR Protection', () => {
     await handler(req, res);
 
     expect(res.statusCode).toBe(200);
+  });
+});
+
+// =============================================
+// Reports: legacy chunk PATCH (regression for undefined-variable crash)
+// =============================================
+describe('Reports legacy chunk PATCH', () => {
+  let handler;
+
+  beforeEach(() => {
+    jest.resetModules();
+    jest.clearAllMocks();
+    handler = require('../api/reports/[id].js').default;
+  });
+
+  test('returns 200 with chunk metadata for legacy uncompressed chunks', async () => {
+    mockJwtVerify.mockResolvedValueOnce({ payload: { id: 2 } });
+    mockSql
+      .mockResolvedValueOnce([{ id: 2, email: 'user@test.com', role: 'user', status: 'approved', permission: 'full_access' }])
+      .mockResolvedValueOnce([{ user_id: 2 }]) // report ownership check
+      .mockResolvedValue([]); // chunk insert + activity log
+
+    const req = createMockReq({
+      method: 'PATCH',
+      headers: { cookie: 'token=user-jwt' },
+      query: { id: '5' },
+      body: { results_data_chunk: [{ parameter: 'Glucose' }] },
+    });
+    const res = createMockRes();
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ id: '5', chunk_type: 'results_data', chunk_index: 0 });
   });
 });
