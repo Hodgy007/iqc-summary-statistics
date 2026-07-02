@@ -407,6 +407,20 @@ describe('parseDate', () => {
     expect(d.getFullYear()).toBe(2025);
   });
 
+  test('parses ISO YYYY-MM-DD without misreading the year as the day', () => {
+    const d = parseDate('2025-03-15');
+    expect(d.getFullYear()).toBe(2025);
+    expect(d.getMonth()).toBe(2); // March
+    expect(d.getDate()).toBe(15);
+  });
+
+  test('parses ISO dates with slash separators too', () => {
+    const d = parseDate('2025/03/15');
+    expect(d.getFullYear()).toBe(2025);
+    expect(d.getMonth()).toBe(2);
+    expect(d.getDate()).toBe(15);
+  });
+
   test('returns epoch for null/empty input', () => {
     expect(parseDate(null).getTime()).toBe(new Date(0).getTime());
     expect(parseDate('').getTime()).toBe(new Date(0).getTime());

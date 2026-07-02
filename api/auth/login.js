@@ -44,8 +44,13 @@ export default async function handler(req, res) {
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
 
-    // Return same generic message for non-approved accounts to avoid timing oracle
-    if (user.status !== 'approved') {
+    // Denied accounts get the same generic message as a wrong password, so a
+    // caller cannot distinguish "denied" from "does not exist". Pending
+    // accounts, however, are issued a session so the client can show the
+    // "Account Pending" screen (requireAuth still blocks every data endpoint
+    // for a non-approved user). This only reveals pending state to someone who
+    // already holds the correct password, which registration already discloses.
+    if (user.status !== 'approved' && user.status !== 'pending') {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
@@ -56,6 +61,12 @@ export default async function handler(req, res) {
       .sign(secret);
 
     res.setHeader('Set-Cookie', `token=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800`);
+
+    if (user.status === 'pending') {
+      await logActivity(user.id, 'login', 'Signed in (pending approval)');
+      return res.status(200).json({ success: true, pending: true, user: { email: user.email, role: user.role, permission: user.permission } });
+    }
+
     await logActivity(user.id, 'login', `Signed in`);
     res.status(200).json({ success: true, user: { email: user.email, role: user.role, permission: user.permission } });
   } catch (err) {

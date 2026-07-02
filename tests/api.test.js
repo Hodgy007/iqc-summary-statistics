@@ -105,14 +105,16 @@ describe('Login API', () => {
     expect(res.statusCode).toBe(401);
   });
 
-  test('rejects pending accounts with generic message to prevent timing oracle', async () => {
-    mockSql.mockResolvedValueOnce([{ id: 1, email: 'test@test.com', password_hash: 'hash', status: 'pending' }]);
+  test('issues a session for pending accounts so the client can show the pending screen', async () => {
+    mockSql.mockResolvedValueOnce([{ id: 1, email: 'test@test.com', password_hash: 'hash', status: 'pending', role: 'user', permission: 'view_only' }]);
     mockCompare.mockResolvedValueOnce(true);
+    mockSign.mockResolvedValueOnce('jwt-token');
     const req = createMockReq({ method: 'POST', body: { email: 'test@test.com', password: 'correct' } });
     const res = createMockRes();
     await handler(req, res);
-    expect(res.statusCode).toBe(401);
-    expect(res.body.error).toBe('Invalid email or password');
+    expect(res.statusCode).toBe(200);
+    expect(res.body.pending).toBe(true);
+    expect(res.headers['Set-Cookie']).toContain('HttpOnly');
   });
 
   test('rejects denied accounts with generic message to prevent timing oracle', async () => {
@@ -466,6 +468,60 @@ describe('Reports IDOR Protection', () => {
     await handler(req, res);
 
     expect(res.statusCode).toBe(200);
+  });
+});
+
+// =============================================
+// Reports: save fallback only on missing user_id column (IDOR guard)
+// =============================================
+describe('Reports save user_id fallback', () => {
+  let handler;
+
+  beforeEach(() => {
+    jest.resetModules();
+    jest.clearAllMocks();
+    handler = require('../api/reports.js').default;
+  });
+
+  const authUser = { id: 2, email: 'u@test.com', role: 'user', status: 'approved', permission: 'full_access' };
+
+  test('surfaces a non-column insert error instead of creating an unowned row', async () => {
+    mockJwtVerify.mockResolvedValueOnce({ payload: { id: 2 } });
+    mockSql
+      .mockResolvedValueOnce([authUser])            // requireAuth
+      .mockRejectedValueOnce(Object.assign(new Error('deadlock'), { code: '40P01' })); // insert with user_id
+
+    const req = createMockReq({
+      method: 'POST',
+      headers: { cookie: 'token=user-jwt' },
+      body: { name: 'R', raw_data_gz: 'abc' },
+    });
+    const res = createMockRes();
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(500);
+    // Must NOT have attempted the column-less fallback insert
+    expect(mockSql).toHaveBeenCalledTimes(2);
+  });
+
+  test('falls back to a column-less insert when user_id is genuinely absent', async () => {
+    mockJwtVerify.mockResolvedValueOnce({ payload: { id: 2 } });
+    mockSql
+      .mockResolvedValueOnce([authUser])            // requireAuth
+      .mockRejectedValueOnce(Object.assign(new Error('column "user_id" does not exist'), { code: '42703' }))
+      .mockResolvedValueOnce([{ id: 7, name: 'R', created_at: 'now' }]) // fallback insert
+      .mockResolvedValue([]);                        // logActivity
+
+    const req = createMockReq({
+      method: 'POST',
+      headers: { cookie: 'token=user-jwt' },
+      body: { name: 'R', raw_data_gz: 'abc' },
+    });
+    const res = createMockRes();
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(201);
+    expect(res.body.id).toBe(7);
   });
 });
 

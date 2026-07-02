@@ -43,8 +43,12 @@ export default async function handler(req, res) {
             RETURNING id, name, created_at
           `;
         } catch (insertErr) {
-          // Fallback for installations where the user_id column doesn't exist yet
-          console.error('Report insert with user_id failed, retrying without:', insertErr.message || insertErr);
+          // Only fall back to a column-less insert when user_id genuinely
+          // doesn't exist (Postgres 42703). Any other error must NOT silently
+          // produce a NULL-owner row (which would bypass the delete ownership
+          // check) — surface it instead.
+          if (insertErr?.code !== '42703') throw insertErr;
+          console.error('reports.user_id column missing, inserting without owner:', insertErr.message || insertErr);
           rows = await sql`
             INSERT INTO reports (name, compressed_data)
             VALUES (${name}, ${bundle})
@@ -64,8 +68,9 @@ export default async function handler(req, res) {
           RETURNING id, name, created_at
         `;
       } catch (insertErr) {
-        // Fallback for installations where the user_id column doesn't exist yet
-        console.error('Report insert with user_id failed, retrying without:', insertErr.message || insertErr);
+        // See above: only fall back when the user_id column is genuinely absent.
+        if (insertErr?.code !== '42703') throw insertErr;
+        console.error('reports.user_id column missing, inserting without owner:', insertErr.message || insertErr);
         rows = await sql`
           INSERT INTO reports (name, raw_data, results_data, exclusions, filters)
           VALUES (${name}, ${JSON.stringify(raw_data || [])}::jsonb, ${JSON.stringify(results_data || [])}::jsonb, ${JSON.stringify(exclusions || [])}::jsonb, ${JSON.stringify(filters || {})}::jsonb)
