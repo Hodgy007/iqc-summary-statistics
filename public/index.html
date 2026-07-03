@@ -88,6 +88,8 @@
 
     .btn:hover { background: var(--border); }
     .btn-primary { background: var(--accent); border-color: var(--accent); }
+    .menu-toggle { display: none; }
+    .scroll-hint { display: none; }
     .btn-primary:hover { background: var(--accent-hover); }
     .btn-danger { background: var(--danger); border-color: var(--danger); }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -949,20 +951,33 @@
 
     /* Responsive */
     @media (max-width: 768px) {
+      /* Header no longer pins to the top on mobile (it was eating most of the
+         first screen), and its actions collapse behind a Menu toggle. */
       .app-header {
         padding: 12px 16px;
+        position: static;
       }
       .app-header h1 {
         font-size: 16px;
       }
+      .menu-toggle { display: inline-block; }
       .header-actions {
+        display: none;
         width: 100%;
+        order: 5;
+        flex-direction: column;
+        align-items: stretch;
         justify-content: flex-start;
       }
+      .header-actions.open { display: flex; }
       .header-actions .btn {
-        padding: 6px 10px;
-        font-size: 12px;
+        width: 100%;
+        text-align: left;
+        padding: 10px 12px;
+        font-size: 13px;
+        min-height: 44px;
       }
+      .user-badge { justify-content: center; }
       .main-content { padding: 12px; }
       .stats-bar { grid-template-columns: repeat(2, 1fr); }
       .filters {
@@ -977,6 +992,16 @@
         width: 100%;
         min-width: 0;
       }
+      /* iOS Safari zooms the page when a focused text field is < 16px */
+      input[type="text"], input[type="password"], input[type="email"], textarea {
+        font-size: 16px;
+      }
+      /* Equal-width, single-tap tabs */
+      .tabs { width: 100%; }
+      .tab { flex: 1; padding: 8px 6px; font-size: 12px; text-align: center; min-height: 40px; }
+      .checkbox-group { flex-wrap: wrap; }
+      .chart-card { padding: 14px; }
+      .btn, .page-btn { min-height: 40px; }
       table {
         font-size: 11px;
       }
@@ -990,6 +1015,20 @@
       .table-container {
         -webkit-overflow-scrolling: touch;
       }
+      /* Keep the Analyte column visible while the instrument groups scroll,
+         and show a one-line hint that the table scrolls sideways. */
+      .scroll-hint { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 8px; }
+      .table-container td.analyte,
+      .table-container thead th.col-analyte {
+        position: sticky;
+        left: 0;
+        z-index: 3;
+        background: var(--surface2);
+      }
+      .table-container thead th.col-analyte { z-index: 4; }
+      td.analyte { background: var(--surface); }
+      tr.even-group td.analyte { background: #1f2a3c; }
+      tr:hover td.analyte { background: var(--surface2); }
     }
 
     @media (max-width: 480px) {
@@ -1007,10 +1046,14 @@
       .filter-group label {
         font-size: 10px;
       }
-      .filter-group select,
-      .filter-group input[type="text"] {
+      .filter-group select {
         padding: 6px 10px;
         font-size: 12px;
+      }
+      /* text inputs stay 16px to avoid iOS focus-zoom (see 768px block) */
+      .filter-group input[type="text"] {
+        padding: 8px 10px;
+        font-size: 16px;
       }
       table {
         font-size: 10px;
@@ -1068,7 +1111,8 @@
 <div id="appContainer" class="hidden">
 <div class="app-header">
   <h1>IQC Summary Statistics <span class="badge">v2.0</span></h1>
-  <div class="header-actions">
+  <button class="btn menu-toggle" id="btnMenuToggle" aria-expanded="false" aria-label="Toggle menu">&#9776; Menu</button>
+  <div class="header-actions" id="headerActions">
     <div class="user-badge" id="userBadge"></div>
     <button class="btn" id="btnSettings" style="display:none">Settings</button>
     <button class="btn" id="btnDataStore" style="background:#7c3aed;border-color:#7c3aed">Data Store</button>
@@ -1260,6 +1304,7 @@
           </select>
         </div>
       </div>
+      <div class="scroll-hint" id="resultsScrollHint">Swipe the table sideways to see all instruments &rarr;</div>
       <div class="table-container" id="resultsTable"></div>
     </div>
 
@@ -1698,8 +1743,28 @@ document.getElementById('btnRegister').addEventListener('click', async () => {
   btn.disabled = false; btn.textContent = 'Create Account';
 });
 
+// Mobile header menu toggle (the action buttons collapse behind "Menu" on
+// small screens). Closes after an action is chosen or on an outside tap.
+const headerActionsEl = document.getElementById('headerActions');
+const menuToggleEl = document.getElementById('btnMenuToggle');
+function setMenuOpen(open) {
+  headerActionsEl.classList.toggle('open', open);
+  menuToggleEl.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+menuToggleEl.addEventListener('click', e => {
+  e.stopPropagation();
+  setMenuOpen(!headerActionsEl.classList.contains('open'));
+});
+headerActionsEl.addEventListener('click', e => {
+  if (e.target.closest('button')) setMenuOpen(false);
+});
+document.addEventListener('click', e => {
+  if (!headerActionsEl.contains(e.target) && e.target !== menuToggleEl) setMenuOpen(false);
+});
+
 // Logout
 document.getElementById('btnLogout').addEventListener('click', async () => {
+  setMenuOpen(false);
   await fetch('/api/auth/logout', { method: 'POST' });
   showAuthScreen();
 });
@@ -2423,7 +2488,7 @@ function renderResultsTable() {
 
   let html = `<table><thead>
     <tr>
-      <th rowspan="2" style="text-align:left;min-width:120px">Analyte</th>
+      <th rowspan="2" class="col-analyte" style="text-align:left;min-width:120px">Analyte</th>
       <th rowspan="2" style="width:50px">Level</th>
       ${instruments.map((inst, i) => `<th colspan="4" class="group-header ${instClasses[i]}">${inst}</th>`).join('')}
       <th colspan="4" class="group-header combined">Combined</th>
