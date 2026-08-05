@@ -3,6 +3,8 @@ const path = require('path');
 const {
   parseCSV,
   processData,
+  buildScopedData,
+  filterByProtocols,
   computeStats,
   buildResults,
   parseDate,
@@ -446,6 +448,108 @@ describe('escapeHtml', () => {
 
   test('stringifies non-string input', () => {
     expect(escapeHtml(42)).toBe('42');
+  });
+});
+
+// =============================================
+// buildScopedData / filterByProtocols
+// =============================================
+describe('buildScopedData', () => {
+  function row(over = {}) {
+    return {
+      protocol: 'TestProto', instrument: 'AU5800 1 L', parameter: 'Glucose',
+      level: '1', date: '01/01/2025', value: 5.5, target: 5, sd: 0.3,
+      status: 'Accepted', message: '', comment: '', user: '', sampleId: '',
+      ...over,
+    };
+  }
+
+  test('keeps rejected and rerun rows that processData drops', () => {
+    const data = [
+      row({ status: 'Accepted' }),
+      row({ status: 'Manually rejected' }),
+      row({ status: 'Rerun requested' }),
+    ];
+    expect(buildScopedData(data, true)).toHaveLength(3);
+    expect(processData(data)).toHaveLength(1);
+  });
+
+  test('rejected rows survive so they can be counted in scope', () => {
+    const data = [row({ status: 'Accepted' }), row({ status: 'Manually rejected' })];
+    const rejected = buildScopedData(data, true).filter(r => r.status === 'Manually rejected');
+    expect(rejected).toHaveLength(1);
+    // The same count taken from processData would be zero, which is the bug this guards
+    expect(processData(data).filter(r => r.status === 'Manually rejected')).toHaveLength(0);
+  });
+
+  test('still drops excluded protocols', () => {
+    const data = [row({ protocol: 'ACCURUN1' }), row({ protocol: 'TestProto' })];
+    const out = buildScopedData(data, true);
+    expect(out).toHaveLength(1);
+    expect(out[0].protocol).toBe('TestProto');
+  });
+
+  test('excludeEval flag controls evaluation protocols', () => {
+    const data = [row({ protocol: 'Glucose Eval' }), row({ protocol: 'TestProto' })];
+    expect(buildScopedData(data, true)).toHaveLength(1);
+    expect(buildScopedData(data, false)).toHaveLength(2);
+  });
+
+  test('maps instrument names and drops unknown instruments', () => {
+    const data = [row({ instrument: 'AU5800 1 L' }), row({ instrument: 'MysteryBox 9000' })];
+    const out = buildScopedData(data, true);
+    expect(out).toHaveLength(1);
+    expect(out[0].instrument).toBe('AU/DxI-1');
+  });
+
+  test('applies level overrides before filtering', () => {
+    const data = [row({ protocol: 'DXI 1 hsTnI', level: '1' })];
+    expect(buildScopedData(data, true)[0].level).toBe('4');
+  });
+
+  test('processData equals buildScopedData minus rejected and rerun rows', () => {
+    const data = [
+      row({ status: 'Accepted' }),
+      row({ status: 'Manually rejected' }),
+      row({ status: 'Rerun requested' }),
+      row({ protocol: 'ACCURUN1' }),
+      row({ instrument: 'MysteryBox 9000' }),
+    ];
+    const expected = buildScopedData(data, true)
+      .filter(r => r.status !== 'Manually rejected' && r.status !== 'Rerun requested');
+    expect(processData(data)).toEqual(expected);
+  });
+});
+
+describe('filterByProtocols', () => {
+  const rows = [
+    { protocol: 'Alpha', value: 1 },
+    { protocol: 'Beta', value: 2 },
+    { protocol: 'Gamma', value: 3 },
+  ];
+
+  test('an empty selection means all protocols', () => {
+    expect(filterByProtocols(rows, new Set())).toEqual(rows);
+  });
+
+  test('a missing selection means all protocols', () => {
+    expect(filterByProtocols(rows, undefined)).toEqual(rows);
+    expect(filterByProtocols(rows, null)).toEqual(rows);
+  });
+
+  test('keeps only the selected protocol', () => {
+    expect(filterByProtocols(rows, new Set(['Beta']))).toEqual([{ protocol: 'Beta', value: 2 }]);
+  });
+
+  test('keeps every selected protocol', () => {
+    expect(filterByProtocols(rows, new Set(['Alpha', 'Gamma']))).toEqual([
+      { protocol: 'Alpha', value: 1 },
+      { protocol: 'Gamma', value: 3 },
+    ]);
+  });
+
+  test('returns nothing when no selected protocol is present', () => {
+    expect(filterByProtocols(rows, new Set(['Delta']))).toEqual([]);
   });
 });
 
