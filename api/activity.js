@@ -1,5 +1,5 @@
-import { requireAuth } from './lib/auth.js';
-import { logActivity } from './lib/activity.js';
+import { requireAuth } from '../lib/auth.js';
+import { logActivity } from '../lib/activity.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
