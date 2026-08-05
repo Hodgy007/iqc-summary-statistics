@@ -660,6 +660,8 @@
       flex-direction: column;
     }
     .multi-select-dropdown.open { display: flex; }
+    /* Protocol names are far longer than analyte codes, so give that dropdown more room */
+    .multi-select-dropdown.wide { min-width: 300px; max-width: 380px; }
     .multi-select-search-wrap { padding: 8px; border-bottom: 1px solid var(--border); }
     .multi-select-search-wrap input {
       width: 100%;
@@ -692,6 +694,7 @@
       font-size: 12px;
       cursor: pointer;
       user-select: none;
+      overflow-wrap: anywhere;
     }
     .multi-select-item:hover { background: var(--surface2); }
     .multi-select-item input[type=checkbox], .multi-select-all-row input[type=checkbox] { cursor: pointer; }
@@ -1243,9 +1246,21 @@
         </div>
         <div class="filter-group">
           <label>Protocol</label>
-          <select id="filterProtocol">
-            <option value="all">All Protocols</option>
-          </select>
+          <div class="multi-select" id="protocolMultiSelect">
+            <button class="multi-select-btn" id="protocolSelectBtn" type="button">
+              <span id="protocolSelectLabel">All Protocols</span>
+              <span>▾</span>
+            </button>
+            <div class="multi-select-dropdown wide" id="protocolDropdown">
+              <div class="multi-select-search-wrap">
+                <input type="text" id="protocolDropdownSearch" placeholder="Search protocols…">
+              </div>
+              <label class="multi-select-all-row">
+                <input type="checkbox" id="protocolSelectAll" checked> All Protocols
+              </label>
+              <div class="multi-select-list" id="protocolCheckboxList"></div>
+            </div>
+          </div>
         </div>
         <div class="filter-group">
           <label>Date From</label>
@@ -2225,6 +2240,11 @@ let processedData = [];
 let resultsData = [];
 let uploadedFiles = [];
 let selectedAnalytes = new Set(); // empty = all selected
+let selectedProtocols = new Set(); // empty = all selected
+// processedData before the status filter is applied. The default "Accepted Only"
+// status filter strips every rejected row, so the PDF's Rejected tile counts from
+// here instead — same protocol/date/exclusion scope, but rejections still present.
+let processedDataAllStatuses = [];
 let ljChartInstance = null;
 let cvChartInstance = null;
 let rawPage = 0;
@@ -2299,19 +2319,25 @@ function mapToKnownInstruments(rows) {
     .filter(r => KNOWN_INSTRUMENTS.has(r.instrument));
 }
 
+// Level overrides + protocol exclusions + instrument mapping, with run status left
+// untouched. Shared by processData() and by the callers that need to count rejected
+// rows, which the status filter would otherwise have already removed.
+function buildScopedData(data, excludeEval) {
+  return mapToKnownInstruments(
+    applyLevelOverrides(data).filter(row => !isProtocolExcluded(row.protocol, excludeEval))
+  );
+}
+
+// An empty selection means "all protocols", matching the analyte multi-select.
+function filterByProtocols(rows, selected) {
+  if (!selected || selected.size === 0) return rows;
+  return rows.filter(r => selected.has(r.protocol));
+}
+
 function processData(data) {
-  // 1. Override levels for specific protocols FIRST
-  let filtered = applyLevelOverrides(data);
-
-  // 2. Filter out excluded protocols (and evaluations if toggle is checked).
   const excludeEval = document.getElementById('filterExcludeEval')?.checked !== false;
-  filtered = filtered.filter(row => !isProtocolExcluded(row.protocol, excludeEval));
-
-  // 3. Filter out rejected
-  filtered = filtered.filter(r => r.status !== 'Manually rejected' && r.status !== 'Rerun requested');
-
-  // 4. Rename instruments and keep only known ones
-  return mapToKnownInstruments(filtered);
+  return buildScopedData(data, excludeEval)
+    .filter(r => r.status !== 'Manually rejected' && r.status !== 'Rerun requested');
 }
 
 function computeStats(values) {
@@ -2370,8 +2396,10 @@ function renderStats() {
   let minDate = 'N/A';
   let maxDate = 'N/A';
 
-  // Use rawData for date range so it reflects all uploaded data, not just the filtered view
-  const dateSource = rawData.length > 0 ? rawData : processedData;
+  // Reflect the rows behind the results table as currently filtered, so the tile
+  // agrees with what is on screen and with the PDF's filtered export.
+  const visibleParams = new Set(getVisibleResults().map(r => r.parameter));
+  const dateSource = processedData.filter(r => visibleParams.has(r.parameter));
   if (dateSource.length > 0) {
     const dateRange = dateSource.reduce((acc, r) => {
       const ds = r.date || r.dt;
@@ -2413,6 +2441,14 @@ function getVisibleResults() {
   if (cvFilter === 'high') data = data.filter(r => r.combined.cv > 10);
   if (cvFilter === 'warn') data = data.filter(r => r.combined.cv > 5);
   return data;
+}
+
+// Table-level filters (analyte selection, search, CV%) change what is displayed
+// without rebuilding the base data, so the stats tile has to refresh alongside
+// the table. applyFilters() covers the base-data filters itself.
+function refreshResultsView() {
+  renderStats();
+  renderResultsTable();
 }
 
 function renderResultsTable() {
@@ -2827,18 +2863,29 @@ function isoToUK(iso) {
 // EXPORT
 // =============================================
 function exportPDF(scope = 'all') {
-  // Determine which results and processed-data subset to render
+  // Determine which results and processed-data subset to render.
+  // rejectedScope mirrors processedSubset but keeps rejected rows, so the summary
+  // tile can report rejections within the same selection.
   const results = scope === 'filtered' ? getVisibleResults() : resultsData;
-  let processedSubset;
+  let processedSubset, rejectedScope;
   if (scope === 'filtered') {
     const visibleParams = new Set(results.map(r => r.parameter));
     processedSubset = processedData.filter(r => visibleParams.has(r.parameter));
+    rejectedScope = processedDataAllStatuses.filter(r => visibleParams.has(r.parameter));
   } else {
     processedSubset = processedData;
+    rejectedScope = processedDataAllStatuses;
   }
 
-  // Build a human-readable summary of active table-level filters (filtered scope only)
+  // Build a human-readable summary of the filters behind this report.
+  // Protocol narrows the base data so it applies to both scopes; the rest are
+  // table-level filters that only the filtered scope honours.
   const activeFilterParts = [];
+  if (selectedProtocols.size > 0) {
+    activeFilterParts.push(selectedProtocols.size === 1
+      ? `Protocol: ${[...selectedProtocols][0]}`
+      : `Protocols: ${selectedProtocols.size} selected`);
+  }
   if (scope === 'filtered') {
     const search = document.getElementById('filterSearch').value.trim();
     const cvFilter = document.getElementById('filterCV').value;
@@ -2869,7 +2916,7 @@ function exportPDF(scope = 'all') {
   doc.text(`Generated: ${today}`, 14, 28);
 
   const parameterCount = new Set(processedSubset.map(r => r.parameter)).size;
-  const rejectedCount = rawData.filter(r => r.status === 'Manually rejected').length;
+  const rejectedCount = rejectedScope.filter(r => r.status === 'Manually rejected').length;
   const datedRows = processedSubset.map(r => ({ str: r.date, t: parseDate(r.date).getTime() })).filter(d => d.t > 0);
   const minDate = datedRows.length ? formatDate(datedRows.reduce((m, d) => d.t < m.t ? d : m).str) : 'N/A';
   const maxDate = datedRows.length ? formatDate(datedRows.reduce((m, d) => d.t > m.t ? d : m).str) : 'N/A';
@@ -2880,9 +2927,9 @@ function exportPDF(scope = 'all') {
   const boxW = 60;
   const boxGap = 8;
   const summaryData = [
-    { label: 'Total Records', value: rawData.length.toLocaleString(), sub: `${processedSubset.length} after filtering` },
+    { label: 'Total Records', value: processedSubset.length.toLocaleString(), sub: `of ${rawData.length.toLocaleString()} uploaded` },
     { label: 'Parameters', value: parameterCount.toString(), sub: `${results.length} analyte/level combos` },
-    { label: 'Rejected', value: rejectedCount.toString(), sub: 'manually rejected' },
+    { label: 'Rejected', value: rejectedCount.toString(), sub: 'in this selection' },
     { label: 'Date Range', value: minDate, sub: `to ${maxDate}` },
   ];
 
@@ -3236,6 +3283,10 @@ async function processFiles() {
     await new Promise(r => setTimeout(r, 50));
 
     processedData = processData(rawData);
+    processedDataAllStatuses = buildScopedData(
+      rawData,
+      document.getElementById('filterExcludeEval')?.checked !== false
+    );
 
     document.getElementById('processingText').textContent = 'Computing statistics...';
     await new Promise(r => setTimeout(r, 50));
@@ -3244,9 +3295,7 @@ async function processFiles() {
 
     // Populate protocol filter
     const protocols = [...new Set(processedData.map(r => r.protocol))].sort();
-    document.getElementById('filterProtocol').innerHTML =
-      '<option value="all">All Protocols</option>' +
-      protocols.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
+    populateProtocolFilter(protocols, false);
 
     // Populate analyte filter
     const analytes = [...new Set(processedData.map(r => r.parameter))].sort();
@@ -3342,7 +3391,7 @@ function onAnalyteCBChange() {
   selectedAnalytes = checked.length === allCbs.length ? new Set() : new Set(checked);
   updateAnalyteSelectAll();
   updateAnalyteLabel();
-  renderResultsTable();
+  refreshResultsView();
 }
 
 function updateAnalyteSelectAll() {
@@ -3379,7 +3428,7 @@ document.getElementById('analyteSelectAll').addEventListener('change', function(
   document.querySelectorAll('.analyte-cb').forEach(cb => { cb.checked = this.checked; });
   selectedAnalytes = new Set();
   updateAnalyteLabel();
-  renderResultsTable();
+  refreshResultsView();
 });
 
 document.getElementById('analyteDropdownSearch').addEventListener('input', function() {
@@ -3390,12 +3439,112 @@ document.getElementById('analyteDropdownSearch').addEventListener('input', funct
   });
 });
 
+// --- Protocol multi-select (mirrors the analyte one above) ---
+// Unlike analytes, protocol is a base-data filter, so changes re-run applyFilters()
+// rather than just re-rendering the results table.
+let renderedProtocols = []; // what the dropdown currently shows
+
+function populateProtocolFilter(protocols, preserveSelection) {
+  const list = document.getElementById('protocolCheckboxList');
+  if (!preserveSelection) selectedProtocols = new Set();
+
+  // Drop protocols that are no longer available when preserving selection
+  if (preserveSelection && selectedProtocols.size > 0) {
+    const available = new Set(protocols);
+    for (const p of [...selectedProtocols]) {
+      if (!available.has(p)) selectedProtocols.delete(p);
+    }
+  }
+
+  // applyFilters() runs on every checkbox click, so only rebuild the list when the
+  // available protocols actually changed. Rebuilding unconditionally would reset the
+  // list's scroll position mid-click and throw away the user's place in a long list.
+  const unchanged = preserveSelection &&
+    protocols.length === renderedProtocols.length &&
+    protocols.every((p, i) => p === renderedProtocols[i]);
+
+  if (!unchanged) {
+    list.innerHTML = protocols.map(p => `
+      <label class="multi-select-item">
+        <input type="checkbox" class="protocol-cb" value="${escapeHtml(p)}"${selectedProtocols.size === 0 || selectedProtocols.has(p) ? ' checked' : ''}>
+        ${escapeHtml(p)}
+      </label>`).join('');
+
+    list.querySelectorAll('.protocol-cb').forEach(cb => {
+      cb.addEventListener('change', onProtocolCBChange);
+    });
+    renderedProtocols = [...protocols];
+    // The list was rebuilt from scratch, so re-apply any search term still typed in.
+    filterProtocolList(document.getElementById('protocolDropdownSearch').value);
+  }
+
+  updateProtocolSelectAll();
+  updateProtocolLabel();
+}
+
+function filterProtocolList(query) {
+  const q = query.toLowerCase();
+  document.querySelectorAll('.protocol-cb').forEach(cb => {
+    cb.closest('.multi-select-item').style.display =
+      cb.value.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
+function onProtocolCBChange() {
+  const allCbs = [...document.querySelectorAll('.protocol-cb')];
+  const checked = allCbs.filter(cb => cb.checked).map(cb => cb.value);
+  selectedProtocols = checked.length === allCbs.length ? new Set() : new Set(checked);
+  updateProtocolSelectAll();
+  updateProtocolLabel();
+  applyFilters();
+}
+
+function updateProtocolSelectAll() {
+  const allCbs = [...document.querySelectorAll('.protocol-cb')];
+  const checkedCount = allCbs.filter(cb => cb.checked).length;
+  const selectAllCb = document.getElementById('protocolSelectAll');
+  selectAllCb.indeterminate = checkedCount > 0 && checkedCount < allCbs.length;
+  selectAllCb.checked = checkedCount === allCbs.length;
+}
+
+function updateProtocolLabel() {
+  const label = document.getElementById('protocolSelectLabel');
+  if (selectedProtocols.size === 0) label.textContent = 'All Protocols';
+  else if (selectedProtocols.size === 1) label.textContent = [...selectedProtocols][0];
+  else label.textContent = `${selectedProtocols.size} protocols`;
+}
+
+document.getElementById('protocolSelectBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  document.getElementById('protocolDropdown').classList.toggle('open');
+});
+
+document.addEventListener('click', e => {
+  if (!document.getElementById('protocolMultiSelect').contains(e.target)) {
+    document.getElementById('protocolDropdown').classList.remove('open');
+    document.getElementById('protocolDropdownSearch').value = '';
+    document.querySelectorAll('.protocol-cb').forEach(cb => {
+      cb.closest('.multi-select-item').style.display = '';
+    });
+  }
+});
+
+document.getElementById('protocolSelectAll').addEventListener('change', function() {
+  document.querySelectorAll('.protocol-cb').forEach(cb => { cb.checked = this.checked; });
+  selectedProtocols = new Set();
+  updateProtocolLabel();
+  applyFilters();
+});
+
+document.getElementById('protocolDropdownSearch').addEventListener('input', function() {
+  filterProtocolList(this.value);
+});
+
 // Filters
-document.getElementById('filterSearch').addEventListener('input', renderResultsTable);
-document.getElementById('filterCV').addEventListener('change', renderResultsTable);
+document.getElementById('filterSearch').addEventListener('input', refreshResultsView);
+document.getElementById('filterCV').addEventListener('change', refreshResultsView);
 document.getElementById('filterStatus').addEventListener('change', applyFilters);
 function applyFilters() {
-  const prot = document.getElementById('filterProtocol').value;
   const dateFrom = document.getElementById('filterDateFrom').value;
   const dateTo = document.getElementById('filterDateTo').value;
   const status = document.getElementById('filterStatus').value;
@@ -3404,24 +3553,16 @@ function applyFilters() {
   // Build base data respecting eval toggle and protocol exclusions.
   // Level overrides run FIRST so hsTnI rows are tagged level 4 even before
   // the eval toggle decides whether to drop them.
-  let base = applyLevelOverrides(rawData).filter(row => {
-    if (isProtocolExcluded(row.protocol, excludeEval)) return false;
-    if (status === 'accepted' && (row.status === 'Manually rejected' || row.status === 'Rerun requested')) return false;
-    if (status === 'rejected' && row.status !== 'Manually rejected') return false;
-    return true;
-  });
-  base = mapToKnownInstruments(base);
+  // The status filter is deliberately applied LAST (see below) so that the
+  // protocol list and the rejected-in-scope count can still see rejected rows.
+  let base = buildScopedData(rawData, excludeEval);
 
-  // Repopulate protocol dropdown with current data
+  // Repopulate protocol multi-select with the protocols still available.
+  // Derived before the protocol filter is applied, so the list does not
+  // collapse to just the selected entries.
   const protocols = [...new Set(base.map(r => r.protocol))].sort();
-  const protSelect = document.getElementById('filterProtocol');
-  const currentProt = protSelect.value;
-  protSelect.innerHTML = '<option value="all">All Protocols</option>' +
-    protocols.map(p => `<option value="${escapeHtml(p)}"${p === currentProt ? ' selected' : ''}>${escapeHtml(p)}</option>`).join('');
-
-  if (currentProt !== 'all' && protocols.includes(currentProt)) {
-    base = base.filter(r => r.protocol === currentProt);
-  }
+  populateProtocolFilter(protocols, true);
+  base = filterByProtocols(base, selectedProtocols);
 
   if (dateFrom) {
     const from = new Date(dateFrom);
@@ -3445,7 +3586,13 @@ function applyFilters() {
     base = base.filter(r => !deletedPointIds.has(r._id));
   }
 
-  processedData = base;
+  // Everything in scope regardless of run status, then the status filter on top.
+  processedDataAllStatuses = base;
+  processedData = base.filter(row => {
+    if (status === 'accepted' && (row.status === 'Manually rejected' || row.status === 'Rerun requested')) return false;
+    if (status === 'rejected' && row.status !== 'Manually rejected') return false;
+    return true;
+  });
   resultsData = buildResults(processedData);
 
   // Refresh analyte filter to only show analytes that have data
@@ -3458,7 +3605,6 @@ function applyFilters() {
   populateChartFilters();
 }
 
-document.getElementById('filterProtocol').addEventListener('change', applyFilters);
 document.getElementById('filterDateFrom').addEventListener('change', applyFilters);
 document.getElementById('filterDateTo').addEventListener('change', applyFilters);
 document.getElementById('filterExcludeEval').addEventListener('change', applyFilters);
@@ -3754,9 +3900,12 @@ document.getElementById('btnExportCSV').addEventListener('click', () => openExpo
 document.getElementById('btnReset').addEventListener('click', () => {
   rawData = [];
   processedData = [];
+  processedDataAllStatuses = [];
   resultsData = [];
   uploadedFiles = [];
   selectedAnalytes = new Set();
+  selectedProtocols = new Set();
+  updateProtocolLabel();
   deletedPointIds.clear();
   document.getElementById('uploadSection').classList.remove('hidden');
   document.getElementById('resultsSection').classList.add('hidden');
@@ -3898,7 +4047,7 @@ document.getElementById('saveModalConfirm').addEventListener('click', async () =
       results_data_gz: arrayBufferToBase64(resultsGzip),
       exclusions: scope === 'filtered' ? exclusions : [],
       filters: {
-        protocol: scope === 'filtered' ? document.getElementById('filterProtocol').value : 'all',
+        protocols: scope === 'filtered' ? [...selectedProtocols] : [],
         dateFrom: scope === 'filtered' ? document.getElementById('filterDateFrom').value : '',
         dateTo: scope === 'filtered' ? document.getElementById('filterDateTo').value : '',
         dateRangeMin: saveRangeMin,
@@ -4085,6 +4234,9 @@ async function loadReport(id) {
     } : { ...r, _id: i });
     resultsData = report.results_data || [];
     rawData = processedData;
+    // Saved reports already had the status filter applied before export, so the
+    // loaded rows are the whole scope there is.
+    processedDataAllStatuses = processedData;
     exclusions = report.exclusions || [];
     // Clear point-removals from any previous dataset: the loaded rows are
     // assigned fresh sequential _ids above, so stale ids would otherwise
@@ -4092,8 +4244,8 @@ async function loadReport(id) {
     deletedPointIds.clear();
     const savedFilters = report.filters || {};
 
-    // Restore UI
-    renderStats();
+    // Restore UI. The stats bar is painted further down from the report's saved
+    // date range, which also covers reports saved before that range was stored.
     renderResultsTable();
     renderRawData();
     populateExclusionAnalytes();
@@ -4113,7 +4265,7 @@ async function loadReport(id) {
     if (cvLevels) cvLevels.innerHTML = levels.map(l => `<option value="${escapeHtml(l)}">Level ${escapeHtml(l)}</option>`).join('');
 
     // Show saved date range and protocol if available
-    document.getElementById('filterProtocol').innerHTML = '<option value="all">All Protocols</option>';
+    populateProtocolFilter([...new Set(processedData.map(r => r.protocol))].sort(), false);
 
     // Compute date range from raw data as fallback for reports saved before the fix
     let dateMin = savedFilters.dateRangeMin || savedFilters.dateFrom || '';

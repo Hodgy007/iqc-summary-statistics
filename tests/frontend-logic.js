@@ -62,8 +62,10 @@ function parseCSV(text) {
   return rows;
 }
 
-function processData(data) {
-  let filtered = data.map(row => {
+const KNOWN_INSTRUMENTS = new Set(['AU/DxI-1', 'AU/DxI-2', 'AU/DxI-3', 'AU/DxI-4']);
+
+function applyLevelOverrides(data) {
+  return data.map(row => {
     const protocol = row.protocol.trim();
     if (
       LEVEL_OVERRIDE_PROTOCOLS.has(protocol) ||
@@ -75,24 +77,37 @@ function processData(data) {
     }
     return row;
   });
+}
 
-  filtered = filtered.filter(row => {
-    if (EXCLUDED_PROTOCOLS.has(row.protocol)) return false;
-    if (/\beval/i.test(row.protocol)) return false;
-    return true;
-  });
+function isProtocolExcluded(protocol, excludeEval) {
+  if (EXCLUDED_PROTOCOLS.has(protocol)) return true;
+  if (excludeEval && /\beval/i.test(protocol)) return true;
+  return false;
+}
 
-  filtered = filtered.filter(r => r.status !== 'Manually rejected' && r.status !== 'Rerun requested');
+function mapToKnownInstruments(rows) {
+  return rows
+    .map(row => ({ ...row, instrument: INSTRUMENTS_MAP[row.instrument] || row.instrument }))
+    .filter(r => KNOWN_INSTRUMENTS.has(r.instrument));
+}
 
-  filtered = filtered.map(row => {
-    const mapped = INSTRUMENTS_MAP[row.instrument];
-    return { ...row, instrument: mapped || row.instrument };
-  });
+// Level overrides + protocol exclusions + instrument mapping, with run status left
+// untouched, so callers can still count rejected rows.
+function buildScopedData(data, excludeEval) {
+  return mapToKnownInstruments(
+    applyLevelOverrides(data).filter(row => !isProtocolExcluded(row.protocol, excludeEval))
+  );
+}
 
-  const knownInstruments = new Set(['AU/DxI-1', 'AU/DxI-2', 'AU/DxI-3', 'AU/DxI-4']);
-  filtered = filtered.filter(r => knownInstruments.has(r.instrument));
+// An empty selection means "all protocols", matching the analyte multi-select.
+function filterByProtocols(rows, selected) {
+  if (!selected || selected.size === 0) return rows;
+  return rows.filter(r => selected.has(r.protocol));
+}
 
-  return filtered;
+function processData(data) {
+  return buildScopedData(data, true)
+    .filter(r => r.status !== 'Manually rejected' && r.status !== 'Rerun requested');
 }
 
 function computeStats(values) {
@@ -171,6 +186,11 @@ function escapeHtml(str) {
 module.exports = {
   parseCSV,
   processData,
+  buildScopedData,
+  filterByProtocols,
+  applyLevelOverrides,
+  isProtocolExcluded,
+  mapToKnownInstruments,
   computeStats,
   buildResults,
   parseDateParts,
