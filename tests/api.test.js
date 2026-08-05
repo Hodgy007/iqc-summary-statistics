@@ -63,7 +63,7 @@ describe('Login API', () => {
     jest.resetModules();
     jest.clearAllMocks();
     // Re-require after mock reset
-    handler = require('../api/auth/login.js').default;
+    handler = require('../lib/auth-routes/login.js').default;
   });
 
   test('rejects non-POST methods', async () => {
@@ -157,7 +157,7 @@ describe('Register API', () => {
   beforeEach(() => {
     jest.resetModules();
     jest.clearAllMocks();
-    handler = require('../api/auth/register.js').default;
+    handler = require('../lib/auth-routes/register.js').default;
   });
 
   test('rejects non-POST methods', async () => {
@@ -232,7 +232,7 @@ describe('Logout API', () => {
   beforeEach(() => {
     jest.resetModules();
     jest.clearAllMocks();
-    handler = require('../api/auth/logout.js').default;
+    handler = require('../lib/auth-routes/logout.js').default;
   });
 
   test('rejects non-POST methods', async () => {
@@ -260,7 +260,7 @@ describe('Me API', () => {
   beforeEach(() => {
     jest.resetModules();
     jest.clearAllMocks();
-    handler = require('../api/auth/me.js').default;
+    handler = require('../lib/auth-routes/me.js').default;
   });
 
   test('rejects non-GET methods', async () => {
@@ -311,6 +311,63 @@ describe('Me API', () => {
 
     expect(res.statusCode).toBe(403);
   });
+});
+
+// =============================================
+// Auth: /api/auth/[action] dispatcher
+// =============================================
+describe('Auth action dispatcher', () => {
+  let handler;
+
+  beforeEach(() => {
+    jest.resetModules();
+    jest.clearAllMocks();
+    handler = require('../api/auth/[action].js').default;
+  });
+
+  // Every URL the frontend calls must still resolve to a handler
+  test.each(['login', 'logout', 'me', 'register', 'change-password'])(
+    'routes /api/auth/%s to a handler', async (action) => {
+      const req = createMockReq({ method: 'OPTIONS', query: { action } });
+      const res = createMockRes();
+      await handler(req, res);
+      // Each handler rejects OPTIONS with 405; the point is it is not a 404
+      expect(res.statusCode).not.toBe(404);
+    }
+  );
+
+  test('dispatches to the correct handler', async () => {
+    // logout is the only handler with no external deps: it clears the cookie
+    const req = createMockReq({ method: 'POST', query: { action: 'logout' } });
+    const res = createMockRes();
+    await handler(req, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['Set-Cookie']).toContain('Max-Age=0');
+  });
+
+  test('returns 404 for an unknown action', async () => {
+    const req = createMockReq({ method: 'POST', query: { action: 'delete-everything' } });
+    const res = createMockRes();
+    await handler(req, res);
+    expect(res.statusCode).toBe(404);
+  });
+
+  test('returns 404 when no action is given', async () => {
+    const req = createMockReq({ method: 'POST', query: {} });
+    const res = createMockRes();
+    await handler(req, res);
+    expect(res.statusCode).toBe(404);
+  });
+
+  // The lookup uses hasOwnProperty so inherited Object members are not routable
+  test.each(['constructor', '__proto__', 'toString', 'hasOwnProperty'])(
+    'returns 404 for inherited property %s', async (action) => {
+      const req = createMockReq({ method: 'POST', query: { action } });
+      const res = createMockRes();
+      await handler(req, res);
+      expect(res.statusCode).toBe(404);
+    }
+  );
 });
 
 // =============================================

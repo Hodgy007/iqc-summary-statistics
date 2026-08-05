@@ -41,23 +41,31 @@ A web-based Internal Quality Control (IQC) dashboard for clinical laboratory ins
 iqc-summary-statistics/
 ├── public/
 │   └── index.html          # Full SPA (HTML + CSS + JS)
-├── api/
+├── api/                     # Every file here becomes a Serverless Function
 │   ├── auth/
-│   │   ├── login.js        # POST /api/auth/login
-│   │   ├── register.js     # POST /api/auth/register
-│   │   ├── logout.js       # POST /api/auth/logout
-│   │   └── me.js           # GET  /api/auth/me
+│   │   └── [action].js     # All /api/auth/* routes (see lib/auth-routes/)
 │   ├── admin/
 │   │   ├── users.js        # GET/PUT /api/admin/users
+│   │   ├── reset-password.js # POST /api/admin/reset-password
 │   │   └── activity.js     # GET /api/admin/activity
 │   ├── activity.js          # POST /api/activity (client-side logging)
+│   ├── csv-store.js         # GET/POST /api/csv-store
+│   ├── csv-store/
+│   │   └── [id].js         # GET/DELETE /api/csv-store/:id
+│   ├── insights.js          # POST /api/insights (AI summary, streamed)
 │   ├── reports.js           # GET/POST /api/reports
 │   ├── reports/
-│   │   └── [id].js         # GET/DELETE /api/reports/:id
-│   ├── lib/
-│   │   ├── auth.js         # JWT verification middleware
-│   │   └── activity.js     # Activity logging helper
+│   │   └── [id].js         # GET/DELETE/PATCH /api/reports/:id
 │   └── setup.js            # GET/POST /api/setup (init DB tables)
+├── lib/                     # Shared modules — NOT Serverless Functions
+│   ├── auth.js             # JWT verification middleware
+│   ├── activity.js         # Activity logging helper
+│   └── auth-routes/        # Handlers dispatched by api/auth/[action].js
+│       ├── login.js        # POST /api/auth/login
+│       ├── register.js     # POST /api/auth/register
+│       ├── logout.js       # POST /api/auth/logout
+│       ├── me.js           # GET  /api/auth/me
+│       └── change-password.js # POST /api/auth/change-password
 ├── tests/
 │   ├── frontend-logic.js   # Extracted frontend functions for testing
 │   ├── frontend.test.js    # Frontend unit tests (parseCSV, computeStats, etc.)
@@ -204,5 +212,26 @@ A typical 25MB dataset compresses to ~2-3MB for storage. The serverless function
 The app is configured for Vercel with:
 - `public/index.html` served as the SPA for all non-API routes
 - `api/` directory auto-deployed as serverless functions
-- Serverless functions configured with 60-second timeout (`maxDuration: 30` in vercel.json)
+- Serverless functions configured with 60-second timeout (`maxDuration: 60` in vercel.json)
 - Routing configured in `vercel.json`
+
+### Serverless function budget
+
+**The Hobby plan allows a maximum of 12 Serverless Functions per deployment.**
+Exceeding it fails the deploy with `exceeded_serverless_functions_per_deployment`
+*after* the build reports success, so a green build log is not proof of a
+successful deploy — check the deployment state.
+
+Every `.js` file under `api/` counts as one function, including files that are
+only ever imported by others. Shared code therefore lives in `lib/` (outside
+`api/`), and the five `/api/auth/*` routes are served by the single dispatcher
+`api/auth/[action].js`.
+
+Current count: **11 of 12**. Before adding a file under `api/`, check the count:
+
+```bash
+find api -name "*.js" -type f | wc -l
+```
+
+To add a route without spending a slot, add a handler in `lib/` and dispatch to
+it from an existing route.

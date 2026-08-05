@@ -1,5 +1,5 @@
 import { neon } from '@neondatabase/serverless';
-import { requireAuth } from './lib/auth.js';
+import { requireAuth } from '../lib/auth.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST') {

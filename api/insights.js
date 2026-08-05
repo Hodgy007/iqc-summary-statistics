@@ -1,5 +1,5 @@
 import { streamText } from 'ai';
-import { requireAuth } from './lib/auth.js';
+import { requireAuth } from '../lib/auth.js';
 
 const INSTRUMENTS = ['AU/DxI-1', 'AU/DxI-2', 'AU/DxI-3', 'AU/DxI-4'];
 const DEFAULT_MAX_OUTPUT_TOKENS = 8192;
