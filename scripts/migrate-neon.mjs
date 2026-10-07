@@ -8,6 +8,9 @@ if (!OLD_URL || !NEW_URL) throw new Error('Set OLD_URL and NEW_URL');
 const oldDb = neon(OLD_URL);
 const newDb = neon(NEW_URL);
 
+// Driver 0.9.x is called as db(text, params); 1.x uses db.query(text, params).
+const run = (db, text, params) => (typeof db.query === 'function' ? db.query(text, params) : db(text, params));
+
 // Parents before children (FK order). Same schema as api/setup.js.
 const TABLES = ['users', 'reports', 'activity_log', 'report_chunks', 'csv_files'];
 
@@ -33,29 +36,29 @@ const DDL = [
     created_at TIMESTAMPTZ DEFAULT NOW())`,
 ];
 
-for (const stmt of DDL) await newDb.query(stmt);
+for (const stmt of DDL) await run(newDb, stmt);
 
 // Fail loudly if the old DB has tables this script doesn't know about.
-const found = (await oldDb.query(
+const found = (await run(oldDb, 
   `SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'`
 )).map((r) => r.table_name);
 const unknown = found.filter((t) => !TABLES.includes(t));
 if (unknown.length) throw new Error(`Old DB has unexpected tables: ${unknown.join(', ')}`);
 
 for (const t of TABLES) {
-  const [{ n }] = await newDb.query(`SELECT count(*)::int n FROM ${t}`);
+  const [{ n }] = await run(newDb, `SELECT count(*)::int n FROM ${t}`);
   if (n > 0) throw new Error(`${t} on the new DB is not empty (${n} rows); aborting`);
 }
 
 for (const t of TABLES) {
-  const [{ rows }] = await oldDb.query(`SELECT coalesce(jsonb_agg(to_jsonb(x) ORDER BY x.id), '[]'::jsonb) AS rows FROM ${t} x`);
+  const [{ rows }] = await run(oldDb, `SELECT coalesce(jsonb_agg(to_jsonb(x) ORDER BY x.id), '[]'::jsonb) AS rows FROM ${t} x`);
   if (rows.length) {
-    await newDb.query(
+    await run(newDb, 
       `INSERT INTO ${t} SELECT * FROM jsonb_populate_recordset(NULL::${t}, $1::jsonb)`,
       [JSON.stringify(rows)]
     );
   }
-  await newDb.query(
+  await run(newDb, 
     `SELECT setval(pg_get_serial_sequence('${t}', 'id'), coalesce((SELECT max(id) FROM ${t}), 1), (SELECT count(*) > 0 FROM ${t}))`
   );
   console.log(`${t}: copied ${rows.length} rows`);
@@ -64,8 +67,8 @@ for (const t of TABLES) {
 let ok = true;
 for (const t of TABLES) {
   const [[a], [b]] = await Promise.all([
-    oldDb.query(`SELECT count(*)::int n FROM ${t}`),
-    newDb.query(`SELECT count(*)::int n FROM ${t}`),
+    run(oldDb, `SELECT count(*)::int n FROM ${t}`),
+    run(newDb, `SELECT count(*)::int n FROM ${t}`),
   ]);
   const match = a.n === b.n;
   ok &&= match;
