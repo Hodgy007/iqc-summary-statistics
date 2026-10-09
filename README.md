@@ -7,8 +7,8 @@ A web-based Internal Quality Control (IQC) dashboard for clinical laboratory ins
 - **CSV Import** — Drag-and-drop semicolon-delimited CSV files exported from instrument software. Multiple files are merged automatically.
 - **Summary Statistics** — Mean, SD, CV%, and n computed per analyte, per level, across four instruments (AU/DxI-1 through AU/DxI-4) plus a combined column.
 - **CV% Colour Coding** — Green (<5%), amber (5-10%), red (>10%) for at-a-glance QC review.
-- **Calculation Drill-down** — Click any stat cell to see the full formula breakdown and all data points used.
-- **Levey-Jennings Charts** — Control charts with mean, +/-1SD, +/-2SD, and +/-3SD lines per analyte/level/instrument.
+- **Calculation Drill-down** — Click any stat cell to see the full formula breakdown and all data points used. Individual points can be removed with a mandatory reason, which is written to the activity log, saved with the report and listed in the PDF.
+- **Levey-Jennings Charts** — Control charts with mean, +/-1SD, +/-2SD, and +/-3SD lines per analyte/level/instrument. Lines can use the observed mean/SD of the plotted data or the Target/SD columns from the instrument export.
 - **CV% Comparison Charts** — Bar charts comparing CV% across instruments.
 - **Filtering** — Filter by protocol, date range, and per-analyte instrument exclusions.
 - **Report Management** — Save reports to the database and reload them later. Saves all underlying raw data with each report for full reproducibility.
@@ -109,7 +109,7 @@ iqc-summary-statistics/
 
 | Method | Endpoint | Permission | Description |
 |--------|----------|------------|-------------|
-| POST | `/api/activity` | Any authenticated | Log a client-side action (data_process, export_pdf, export_xlsx, export_csv, data_clear). |
+| POST | `/api/activity` | Any authenticated | Log a client-side action (data_process, export_pdf, export_xlsx, export_csv, data_clear, point_remove, point_restore). |
 
 ### Setup
 
@@ -196,6 +196,8 @@ vercel
 npm test
 ```
 
+Tests run in `Europe/London` time (set in `tests/global-setup.js`) so date handling is exercised across BST.
+
 ## Report Storage Architecture
 
 Reports use a compressed storage approach to handle large datasets within Vercel's 4.5MB body size limit:
@@ -203,7 +205,8 @@ Reports use a compressed storage approach to handle large datasets within Vercel
 1. **Browser-side compression** — Raw data and results are gzip-compressed using the browser's `CompressionStream` API, then base64-encoded
 2. **Single INSERT** — Compressed bundle (raw data + results + exclusions + filters) stored in a single `compressed_data` TEXT column
 3. **Browser-side decompression** — On load, compressed data is decompressed using `DecompressionStream`
-4. **Short key compression** — Raw data rows use abbreviated keys (pr/in/pa/lv/dt/v/st/si) to further reduce size
+4. **Short key compression** — Raw data rows use abbreviated keys (pr/in/pa/lv/dt/v/st/si, plus tg/sd/ms/cm/us for target, SD, message, comment and user) to further reduce size. Reports saved before the second set was added load with target/SD of 0.
+5. **Removed points** — Points removed with a reason are recorded in `filters.removedPoints` and listed in the PDF export
 
 A typical 25MB dataset compresses to ~2-3MB for storage. The serverless function pre-warming strategy eliminates cold start delays (~45s reduced to ~1.5s).
 

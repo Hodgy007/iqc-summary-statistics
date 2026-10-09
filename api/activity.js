@@ -11,7 +11,7 @@ export default async function handler(req, res) {
   if (!action) return res.status(400).json({ error: 'Action is required' });
 
   // Validate action is a known client-side action
-  const allowedActions = ['data_process', 'export_pdf', 'export_xlsx', 'export_csv', 'data_clear'];
+  const allowedActions = ['data_process', 'export_pdf', 'export_xlsx', 'export_csv', 'data_clear', 'point_remove', 'point_restore'];
   if (!allowedActions.includes(action)) {
     return res.status(400).json({ error: 'Invalid action' });
   }

@@ -1231,8 +1231,8 @@
           <label>CV% Highlight</label>
           <select id="filterCV">
             <option value="all">Show All</option>
-            <option value="high">High CV (>10%)</option>
-            <option value="warn">Warning CV (>5%)</option>
+            <option value="high">Any CV &gt;10% (instrument or combined)</option>
+            <option value="warn">Any CV &gt;5% (instrument or combined)</option>
           </select>
         </div>
         <div class="filter-group">
@@ -1298,10 +1298,18 @@
             <label class="cb-label"><input type="checkbox" value="AU/DxI-4" checked><span class="cb-dot" style="background:var(--inst4)"></span>AU/DxI-4</label>
           </div>
         </div>
+        <div class="filter-group">
+          <label>Reference lines</label>
+          <select id="chartReference">
+            <option value="observed">Observed mean/SD (plotted data)</option>
+            <option value="target">Target mean/SD (from file)</option>
+          </select>
+        </div>
       </div>
       <div class="chart-grid">
         <div class="chart-card">
           <h3>Levey-Jennings Control Chart</h3>
+          <div id="ljChartNote" style="font-size:12px;color:var(--text-dim);margin:-8px 0 12px"></div>
           <div class="chart-wrapper"><canvas id="ljChart"></canvas></div>
         </div>
         <div class="chart-card">
@@ -1427,7 +1435,7 @@
         <input type="radio" name="saveScope" value="all" style="accent-color:var(--accent)">
         <div>
           <div style="font-weight:600;color:var(--text)">All loaded data</div>
-          <div style="color:var(--text-dim);font-size:12px;margin-top:2px">Saves the full dataset across all uploaded files, ignoring current filters</div>
+          <div style="color:var(--text-dim);font-size:12px;margin-top:2px">Saves the full dataset across all uploaded files, ignoring current filters. Points removed with a reason stay removed.</div>
         </div>
       </label>
       <div id="saveSizeInfo" style="margin-top:12px;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--text-dim);line-height:1.6"></div>
@@ -1949,6 +1957,8 @@ async function loadActivityLog() {
       export_csv: 'Exported CSV',
       data_clear: 'Cleared data',
       user_update: 'Updated user',
+      point_remove: 'Removed data point',
+      point_restore: 'Restored data points',
     };
 
     const actionColors = {
@@ -1963,6 +1973,8 @@ async function loadActivityLog() {
       export_csv: 'var(--text-dim)',
       data_clear: 'var(--danger)',
       user_update: 'var(--warning)',
+      point_remove: 'var(--danger)',
+      point_restore: 'var(--warning)',
     };
 
     container.innerHTML = `
@@ -2438,9 +2450,20 @@ function getVisibleResults() {
   let data = resultsData;
   if (selectedAnalytes.size > 0) data = data.filter(r => selectedAnalytes.has(r.parameter));
   if (search) data = data.filter(r => r.parameter.toLowerCase().includes(search));
-  if (cvFilter === 'high') data = data.filter(r => r.combined.cv > 10);
-  if (cvFilter === 'warn') data = data.filter(r => r.combined.cv > 5);
+  if (cvFilter === 'high') data = data.filter(r => maxCV(r) > 10);
+  if (cvFilter === 'warn') data = data.filter(r => maxCV(r) > 5);
   return data;
+}
+
+// Highest CV% across the individual instruments and the combined column, so the
+// CV% filter catches one imprecise instrument even when the combined CV looks fine.
+function maxCV(row) {
+  let max = 0;
+  for (const key of ['AU/DxI-1', 'AU/DxI-2', 'AU/DxI-3', 'AU/DxI-4', 'combined']) {
+    const s = row[key];
+    if (s && s.count > 0 && s.cv > max) max = s.cv;
+  }
+  return max;
 }
 
 // Table-level filters (analyte selection, search, CV%) change what is displayed
@@ -2585,25 +2608,60 @@ function getSelectedInstruments() {
   return [...document.querySelectorAll('#chartInstruments input:checked')].map(cb => cb.value);
 }
 
+// Mean and SD for the Levey-Jennings reference lines.
+// 'observed' uses the plotted points themselves; 'target' uses the Target/SD
+// columns from the instrument export, picking the most frequent pair when the
+// range spans more than one (e.g. a lot change). Falls back to observed when
+// the data carries no usable target (SD of 0, or a report saved before targets
+// were stored).
+function getLJReference(points, mode, instrumentCount) {
+  const observed = computeStats(points.map(r => r.value));
+  const pooled = instrumentCount > 1 ? ' pooled across the selected instruments' : '';
+  const observedNote = `Lines show the mean and SD of the ${points.length} plotted results${pooled}.`;
+  if (mode !== 'target') return { stats: observed, note: observedNote };
+
+  const pairs = new Map();
+  for (const r of points) {
+    if (!(r.sd > 0)) continue;
+    const key = `${r.target}|${r.sd}`;
+    pairs.set(key, (pairs.get(key) || 0) + 1);
+  }
+  if (pairs.size === 0) {
+    return { stats: observed, note: 'No target/SD in this data, so the lines show the observed mean and SD instead. ' + observedNote };
+  }
+  const [bestKey, bestCount] = [...pairs.entries()].sort((a, b) => b[1] - a[1])[0];
+  const [target, sd] = bestKey.split('|').map(Number);
+  const stats = { mean: target, sd, cv: target !== 0 ? Math.abs(sd / target) * 100 : 0, count: bestCount };
+  const note = pairs.size > 1
+    ? `Lines show target ${target} ± SD ${sd}, used by ${bestCount} of ${points.length} results; ${pairs.size} different target/SD pairs are in range (possible lot change).`
+    : `Lines show target ${target} ± SD ${sd} from the instrument export.`;
+  return { stats, note };
+}
+
 function renderLJChart() {
   const param = document.getElementById('chartAnalyte').value;
   const level = document.getElementById('chartLevel').value;
   const selectedInsts = getSelectedInstruments();
 
-  if (!selectedInsts.length) {
-    if (ljChartInstance) ljChartInstance.destroy();
+  const note = document.getElementById('ljChartNote');
+  const filtered = selectedInsts.length ? processedData.filter(r =>
+    r.parameter === param && r.level === level && selectedInsts.includes(r.instrument)
+  ) : [];
+
+  const sorted = [...filtered].sort((a, b) => parseDate(a.date) - parseDate(b.date));
+  if (!sorted.length) {
+    // Clear the previous chart rather than leaving it on screen for a selection it doesn't match
+    if (ljChartInstance) { ljChartInstance.destroy(); ljChartInstance = null; }
+    note.textContent = selectedInsts.length
+      ? `No data for ${param} level ${level} on the selected instruments.`
+      : 'Select at least one instrument.';
     return;
   }
 
-  const filtered = processedData.filter(r =>
-    r.parameter === param && r.level === level && selectedInsts.includes(r.instrument)
-  );
-
-  const sorted = [...filtered].sort((a, b) => parseDate(a.date) - parseDate(b.date));
-  if (!sorted.length) return;
-
-  const values = sorted.map(r => r.value);
-  const stats = computeStats(values);
+  const dp = decimalsFor(param);
+  const reference = getLJReference(sorted, document.getElementById('chartReference').value, selectedInsts.length);
+  const stats = reference.stats;
+  note.textContent = reference.note;
 
   const colors = {
     'AU/DxI-1': 'rgba(59, 130, 246, 0.8)',
@@ -2644,7 +2702,7 @@ function renderLJChart() {
             meanLine: {
               type: 'line', yMin: stats.mean, yMax: stats.mean,
               borderColor: 'rgba(34, 197, 94, 0.8)', borderWidth: 2, borderDash: [6, 3],
-              label: { display: true, content: `Mean: ${stats.mean.toFixed(2)}`, position: 'start', backgroundColor: 'rgba(34,197,94,0.8)', font: { size: 11 } }
+              label: { display: true, content: `Mean: ${stats.mean.toFixed(dp)}`, position: 'start', backgroundColor: 'rgba(34,197,94,0.8)', font: { size: 11 } }
             },
             plus1sd: {
               type: 'line', yMin: stats.mean + stats.sd, yMax: stats.mean + stats.sd,
@@ -2687,7 +2745,7 @@ function renderLJChart() {
             },
             label: ctx => {
               const v = ctx.parsed?.y ?? ctx.raw?.y ?? ctx.raw;
-              return `${ctx.dataset.label}: ${Number(v).toFixed(2)}`;
+              return `${ctx.dataset.label}: ${Number(v).toFixed(dp)}`;
             }
           }
         }
@@ -2723,7 +2781,7 @@ function renderLJChart() {
           ticks: {
             color: '#94a3b8',
             callback: function(value) {
-              if (stats.sd === 0) return value.toFixed(2);
+              if (stats.sd === 0) return value.toFixed(dp);
               const { mean, sd } = stats;
               const eps = sd * 0.001;
               const sdLabels = [
@@ -2736,9 +2794,9 @@ function renderLJChart() {
                 [mean + 3 * sd, '+3SD'],
               ];
               for (const [ref, label] of sdLabels) {
-                if (Math.abs(value - ref) < eps) return [label, ref.toFixed(2)];
+                if (Math.abs(value - ref) < eps) return [label, ref.toFixed(dp)];
               }
-              return value.toFixed(2);
+              return value.toFixed(dp);
             }
           },
           grid: { color: 'rgba(71,85,105,0.3)' }
@@ -2851,6 +2909,35 @@ function formatDate(dateStr) {
   return dateStr;
 }
 
+// Local calendar date as yyyy-mm-dd. toISOString() converts to UTC first, which
+// moves a local-midnight date back a day during BST.
+function toISODateLocal(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// Parse yyyy-mm-dd as local midnight. new Date('yyyy-mm-dd') is UTC midnight,
+// which is 01:00 during BST and would drop rows from the first hour of the day.
+function parseISODateLocal(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+// Earliest and latest of an array of Dates, or null when none are valid.
+// A loop rather than Math.min(...arr): spreading 100k+ values overflows the stack.
+function dateExtent(dates) {
+  let min = Infinity, max = -Infinity;
+  for (const d of dates) {
+    const t = d.getTime();
+    if (!(t > 0)) continue;
+    if (t < min) min = t;
+    if (t > max) max = t;
+  }
+  return min === Infinity ? null : { min: new Date(min), max: new Date(max) };
+}
+
 // Convert ISO date (yyyy-mm-dd) to UK display format (dd/mm/yyyy)
 function isoToUK(iso) {
   if (!iso) return iso;
@@ -2891,8 +2978,8 @@ function exportPDF(scope = 'all') {
     const cvFilter = document.getElementById('filterCV').value;
     if (selectedAnalytes.size > 0) activeFilterParts.push(`Analytes: ${selectedAnalytes.size} selected`);
     if (search) activeFilterParts.push(`Search: "${search}"`);
-    if (cvFilter === 'high') activeFilterParts.push('CV% > 10');
-    if (cvFilter === 'warn') activeFilterParts.push('CV% > 5');
+    if (cvFilter === 'high') activeFilterParts.push('Any CV% > 10');
+    if (cvFilter === 'warn') activeFilterParts.push('Any CV% > 5');
   }
 
   logUserActivity('export_pdf', `${results.length} analyte groups (${scope})`);
@@ -3026,8 +3113,34 @@ function exportPDF(scope = 'all') {
     }
   });
 
+  // --- Removed data points (audit trail) ---
+  const removedInScope = scope === 'filtered'
+    ? removedPoints.filter(p => results.some(r => r.parameter === p.parameter && r.level === p.level))
+    : removedPoints;
+  if (removedInScope.length > 0) {
+    let y = doc.lastAutoTable.finalY + 10;
+    if (y > pageH - 30) { doc.addPage(); y = 20; }
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text(`Removed Data Points (${removedInScope.length})`, 14, y);
+    doc.autoTable({
+      head: [['Date', 'Analyte', 'Lvl', 'Instrument', 'Value', 'Reason', 'Removed by', 'Removed at']],
+      body: removedInScope.map(p => [
+        formatDate(p.date), p.parameter, p.level, p.instrument, String(p.value), p.reason,
+        p.removedBy || '-',
+        p.removedAt ? new Date(p.removedAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-',
+      ]),
+      startY: y + 4,
+      theme: 'grid',
+      styles: { fontSize: 7, cellPadding: 1.5, lineColor: [200, 200, 200], lineWidth: 0.1 },
+      headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold' },
+      columnStyles: { 5: { cellWidth: 80 } },
+      margin: { left: 14, right: 14 },
+    });
+  }
 
-  const dateStr = new Date().toISOString().split('T')[0];
+  const dateStr = toISODateLocal(new Date());
   const suffix = scope === 'filtered' ? '-filtered' : '';
   doc.save(`QCAudit-Report-${dateStr}${suffix}.pdf`);
   } catch(err) {
@@ -3142,12 +3255,15 @@ function exportXLSX(scope = 'all') {
   // Style data rows
   for (let r = 2; r < rows.length; r++) {
     const isEvenGroup = r % 2 === 0;
+    // Mean and SD follow the analyte's display precision (3dp for Ca, Mg, etc.)
+    const meanSdFmt = decimalsFor(rows[r][0]) === 3 ? '0.000' : '0.00';
     for (let c = 0; c < 22; c++) {
       const ref = XLSX.utils.encode_cell({ r, c });
       if (!ws[ref]) ws[ref] = { v: '', t: 's' };
       const isGroupStart = [0, 2, 6, 10, 14, 18].includes(c);
       const isGroupEnd = [1, 5, 9, 13, 17, 21].includes(c);
       const isNCol = [5, 9, 13, 17, 21].includes(c);
+      const isCVCol = [4, 8, 12, 16, 20].includes(c);
       ws[ref].s = {
         font: normalFont,
         alignment: c >= 2 ? centerAlign : { horizontal: c === 0 ? 'left' : 'center', vertical: 'center' },
@@ -3157,7 +3273,7 @@ function exportXLSX(scope = 'all') {
           top: null,
           bottom: null
         },
-        numFmt: isNCol ? '0' : (c >= 2 ? '0.00' : undefined),
+        numFmt: isNCol ? '0' : isCVCol ? '0.00' : (c >= 2 ? meanSdFmt : undefined),
         fill: isEvenGroup ? { type: 'pattern', patternType: 'solid', fgColor: { rgb: 'D6E4F0' } } : undefined
       };
     }
@@ -3167,7 +3283,7 @@ function exportXLSX(scope = 'all') {
 
   // Write and download
   const xlsxSuffix = scope === 'filtered' ? '-filtered' : '';
-  XLSX.writeFile(wb, `QCAudit-${new Date().toISOString().split('T')[0]}${xlsxSuffix}.xlsx`);
+  XLSX.writeFile(wb, `QCAudit-${toISODateLocal(new Date())}${xlsxSuffix}.xlsx`);
 }
 
 // Quote a CSV field when it contains a delimiter, quote, or newline
@@ -3189,12 +3305,12 @@ function exportCSV(scope = 'all') {
   for (const row of rows_data) {
     const dp = decimalsFor(row.parameter);
     csv += `${csvField(row.parameter)},${csvField(row.level)}`;
-    for (const inst of instruments) {
-      const s = row[inst];
-      csv += `,${s.mean.toFixed(dp)},${s.sd.toFixed(dp)},${s.cv.toFixed(2)},${s.count}`;
+    // Instruments with no data are left blank, as in the PDF and XLSX exports
+    for (const s of [...instruments.map(inst => row[inst]), row.combined]) {
+      csv += s && s.count > 0
+        ? `,${s.mean.toFixed(dp)},${s.sd.toFixed(dp)},${s.cv.toFixed(2)},${s.count}`
+        : ',,,,';
     }
-    const c = row.combined;
-    csv += `,${c.mean.toFixed(dp)},${c.sd.toFixed(dp)},${c.cv.toFixed(2)},${c.count}`;
     csv += '\n';
   }
 
@@ -3203,7 +3319,7 @@ function exportCSV(scope = 'all') {
   const a = document.createElement('a');
   a.href = url;
   const csvSuffix = scope === 'filtered' ? '-filtered' : '';
-  a.download = `QCAudit-${new Date().toISOString().split('T')[0]}${csvSuffix}.csv`;
+  a.download = `QCAudit-${toISODateLocal(new Date())}${csvSuffix}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -3271,12 +3387,18 @@ async function processFiles() {
 
   try {
     rawData = [];
+    // Row _ids are reassigned below, so earlier removals would point at the wrong rows
+    deletedPointIds.clear();
+    removedPoints = [];
     for (const file of uploadedFiles) {
       const text = await file.text();
       const rows = parseCSV(text);
       const offset = rawData.length;
-      rows.forEach(r => { r._id += offset; });
-      rawData.push(...rows);
+      // Push one at a time: push(...rows) overflows the stack on files over ~120k rows
+      for (const r of rows) {
+        r._id += offset;
+        rawData.push(r);
+      }
     }
 
     document.getElementById('processingText').textContent = `Processing ${rawData.length.toLocaleString()} records...`;
@@ -3304,7 +3426,7 @@ async function processFiles() {
     // Populate date filters with unique dates from data
     const uniqueDates = [...new Set(processedData.map(r => {
       const d = parseDate(r.date);
-      return d.getTime() > 0 ? d.toISOString().split('T')[0] : null;
+      return d.getTime() > 0 ? toISODateLocal(d) : null;
     }).filter(Boolean))].sort();
     document.getElementById('filterDateFrom').innerHTML =
       '<option value="">Earliest</option>' +
@@ -3565,11 +3687,11 @@ function applyFilters() {
   base = filterByProtocols(base, selectedProtocols);
 
   if (dateFrom) {
-    const from = new Date(dateFrom);
+    const from = parseISODateLocal(dateFrom);
     base = base.filter(r => parseDate(r.date) >= from);
   }
   if (dateTo) {
-    const to = new Date(dateTo);
+    const to = parseISODateLocal(dateTo);
     to.setHours(23, 59, 59, 999);
     base = base.filter(r => parseDate(r.date) <= to);
   }
@@ -3614,6 +3736,7 @@ document.getElementById('rawSearch').addEventListener('input', () => { rawPage =
 document.getElementById('chartAnalyte').addEventListener('change', renderLJChart);
 document.getElementById('chartLevel').addEventListener('change', renderLJChart);
 document.getElementById('chartInstruments').addEventListener('change', renderLJChart);
+document.getElementById('chartReference').addEventListener('change', renderLJChart);
 document.getElementById('cvChartLevel').addEventListener('change', renderCVChart);
 
 // =============================================
@@ -3621,6 +3744,10 @@ document.getElementById('cvChartLevel').addEventListener('change', renderCVChart
 // =============================================
 let exclusions = []; // [{analyte, instrument}]
 let deletedPointIds = new Set(); // track deleted data point _ids
+// Audit trail for removed points: who removed what, when and why. Entries with an
+// `id` were removed in this session from the current data; entries without one
+// came from a loaded report, whose saved rows already exclude them.
+let removedPoints = [];
 let modalPoints = []; // current modal data points for sorting
 let modalMeta = {};   // param/level/inst/stat/mean/sd for sort re-render
 let modalSortCol = null, modalSortDir = 'asc';
@@ -3806,7 +3933,27 @@ modalBody.addEventListener('click', e => {
 
 function deleteDataPoint(pointId) {
   const { param, level, inst, stat } = modalMeta;
+  const point = modalPoints.find(p => p._id === pointId);
+  if (!point) return;
+  const reason = prompt(
+    `Reason for removing this result (recorded in the activity log and saved reports):\n\n` +
+    `${point.parameter} level ${point.level}, ${point.instrument}, ${formatDate(point.date)}, value ${point.value}`
+  );
+  if (reason === null) return;
+  if (!reason.trim()) { alert('A reason is required to remove a data point.'); return; }
+
+  const cleanReason = reason.trim().slice(0, 200);
   deletedPointIds.add(pointId);
+  removedPoints.push({
+    id: pointId,
+    parameter: point.parameter, level: point.level, instrument: point.instrument,
+    protocol: point.protocol, date: point.date, value: point.value,
+    reason: cleanReason,
+    removedBy: currentUser ? currentUser.email : '',
+    removedAt: new Date().toISOString(),
+  });
+  logUserActivity('point_remove',
+    `${point.parameter} L${point.level} ${point.instrument} ${point.date} value ${point.value}: ${cleanReason}`);
   // Fade out the row
   const row = document.getElementById('point-row-' + pointId);
   if (row) {
@@ -3827,7 +3974,12 @@ function deleteDataPoint(pointId) {
 }
 
 function restoreAllPoints() {
+  if (deletedPointIds.size > 0) {
+    logUserActivity('point_restore', `Restored ${deletedPointIds.size} removed data point(s)`);
+  }
   deletedPointIds.clear();
+  // Loaded-report removals stay: those rows are not in the data to restore
+  removedPoints = removedPoints.filter(p => p.id === undefined);
   applyFilters();
   modalOverlay.classList.remove('active');
 }
@@ -3907,6 +4059,7 @@ document.getElementById('btnReset').addEventListener('click', () => {
   selectedProtocols = new Set();
   updateProtocolLabel();
   deletedPointIds.clear();
+  removedPoints = [];
   document.getElementById('uploadSection').classList.remove('hidden');
   document.getElementById('resultsSection').classList.add('hidden');
   document.getElementById('btnExportCSV').disabled = true;
@@ -3919,8 +4072,9 @@ document.getElementById('btnReset').addEventListener('click', () => {
   document.getElementById('fileInput').value = '';
   const dz = document.getElementById('dropZone');
   if (dz) dz.style.display = '';
-  if (ljChartInstance) ljChartInstance.destroy();
-  if (cvChartInstance) cvChartInstance.destroy();
+  if (ljChartInstance) { ljChartInstance.destroy(); ljChartInstance = null; }
+  if (cvChartInstance) { cvChartInstance.destroy(); cvChartInstance = null; }
+  document.getElementById('ljChartNote').textContent = '';
 });
 
 // =============================================
@@ -3932,6 +4086,41 @@ const loadModalBody = document.getElementById('loadModalBody');
 document.getElementById('loadModalClose').addEventListener('click', () => loadModalOverlay.classList.remove('active'));
 loadModalOverlay.addEventListener('click', e => { if (e.target === loadModalOverlay) loadModalOverlay.classList.remove('active'); });
 
+// Short-key row format for saved reports (gzip does the rest). Target, SD,
+// message, comment and user are kept so a reloaded report has the same columns
+// as a freshly processed file; reports saved before they were added load as 0/''.
+function toSlimRow(r) {
+  return {
+    pr: r.protocol, in: r.instrument, pa: r.parameter,
+    lv: r.level, dt: r.date, v: r.value, st: r.status, si: r.sampleId || '',
+    tg: r.target || 0, sd: r.sd || 0, ms: r.message || '', cm: r.comment || '', us: r.user || ''
+  };
+}
+
+// Inverse of toSlimRow. Assigns a sequential _id so per-point removal works on
+// loaded reports (the slim format drops _id). Legacy full-key rows pass through.
+function fromSlimRow(r, i) {
+  if (r.pa === undefined) return { ...r, _id: i };
+  return {
+    _id: i,
+    protocol: r.pr, instrument: r.in, parameter: r.pa,
+    level: r.lv, date: r.dt, value: r.v, status: r.st, sampleId: r.si || '',
+    target: r.tg || 0, sd: r.sd || 0, message: r.ms || '', comment: r.cm || '', user: r.us || ''
+  };
+}
+
+// Data for an "All loaded data" save: ignores the view filters, but points removed
+// with a recorded reason stay removed.
+function fullScopeData() {
+  return processData(rawData).filter(r => !deletedPointIds.has(r._id));
+}
+
+// Removal records relevant to a set of rows (matched on analyte + level).
+function removedPointsFor(rows) {
+  const keys = new Set(rows.map(r => r.parameter + '|' + r.level));
+  return removedPoints.filter(p => keys.has(p.parameter + '|' + p.level));
+}
+
 // Save Report — dialog
 const saveModalOverlay = document.getElementById('saveModalOverlay');
 function updateSaveSizeInfo() {
@@ -3940,7 +4129,7 @@ function updateSaveSizeInfo() {
 
   let dataRows, resultRows;
   if (scope === 'all') {
-    dataRows = processData(rawData);
+    dataRows = fullScopeData();
     resultRows = buildResults(dataRows);
   } else {
     resultRows = getVisibleResults();
@@ -3948,11 +4137,10 @@ function updateSaveSizeInfo() {
     dataRows = processedData.filter(r => visibleKeys.has(r.parameter + '|' + r.level));
   }
 
-  const slimPreview = dataRows.map(r => ({
-    pr: r.protocol, in: r.instrument, pa: r.parameter,
-    lv: r.level, dt: r.date, v: r.value, st: r.status, si: r.sampleId || ''
-  }));
+  const slimPreview = dataRows.map(toSlimRow);
   const rawSize = JSON.stringify(slimPreview).length;
+  // A full save keeps every removal record, even for an analyte/level whose points were all removed
+  const removedCount = (scope === 'all' ? removedPoints : removedPointsFor(dataRows)).length;
   const resSize = JSON.stringify(resultRows).length;
   const totalSize = rawSize + resSize;
   const rawMB = (rawSize / 1024 / 1024).toFixed(2);
@@ -3961,6 +4149,7 @@ function updateSaveSizeInfo() {
   info.innerHTML = `<strong>Data size (before gzip):</strong> ${totalMB} MB<br>` +
     `Raw data: ${rawMB} MB &middot; ${dataRows.length.toLocaleString()} rows<br>` +
     `Results: ${resMB} MB &middot; ${resultRows.length.toLocaleString()} rows<br>` +
+    (removedCount ? `Removed points recorded: ${removedCount}<br>` : '') +
     `<em>Compressed to ~${(totalSize / 8 / 1024 / 1024).toFixed(2)} MB for upload</em>`;
 }
 
@@ -3994,19 +4183,19 @@ document.getElementById('saveModalConfirm').addEventListener('click', async () =
   saveModalOverlay.classList.remove('active');
 
   // Compute the results to save (apply table-level filters for 'filtered' scope)
-  const saveResults = scope === 'all' ? buildResults(processData(rawData)) : getVisibleResults();
-
-  // Compute filtered raw data matching visible results
-  let saveData;
+  // and the raw data behind them
+  let saveData, saveResults;
   if (scope === 'all') {
-    saveData = processData(rawData);
+    saveData = fullScopeData();
+    saveResults = buildResults(saveData);
   } else {
+    saveResults = getVisibleResults();
     const visibleKeys = new Set(saveResults.map(r => r.parameter + '|' + r.level));
     saveData = processedData.filter(r => visibleKeys.has(r.parameter + '|' + r.level));
   }
   const datedSave = saveData.map(r => ({ str: r.date, t: parseDate(r.date).getTime() })).filter(d => d.t > 0);
-  const saveRangeMin = datedSave.length ? parseDate(datedSave.reduce((m, d) => d.t < m.t ? d : m).str).toISOString().split('T')[0] : '';
-  const saveRangeMax = datedSave.length ? parseDate(datedSave.reduce((m, d) => d.t > m.t ? d : m).str).toISOString().split('T')[0] : '';
+  const saveRangeMin = datedSave.length ? toISODateLocal(parseDate(datedSave.reduce((m, d) => d.t < m.t ? d : m).str)) : '';
+  const saveRangeMax = datedSave.length ? toISODateLocal(parseDate(datedSave.reduce((m, d) => d.t > m.t ? d : m).str)) : '';
 
   const btn = document.getElementById('btnSaveReport');
   btn.disabled = true;
@@ -4014,10 +4203,7 @@ document.getElementById('saveModalConfirm').addEventListener('click', async () =
 
   try {
     // Compress raw data with short keys to reduce payload size
-    const slimData = saveData.map(r => ({
-      pr: r.protocol, in: r.instrument, pa: r.parameter,
-      lv: r.level, dt: r.date, v: r.value, st: r.status, si: r.sampleId || ''
-    }));
+    const slimData = saveData.map(toSlimRow);
 
     const rawJSON = JSON.stringify(slimData);
     const resultsJSON = JSON.stringify(saveResults);
@@ -4052,6 +4238,7 @@ document.getElementById('saveModalConfirm').addEventListener('click', async () =
         dateTo: scope === 'filtered' ? document.getElementById('filterDateTo').value : '',
         dateRangeMin: saveRangeMin,
         dateRangeMax: saveRangeMax,
+        removedPoints: (scope === 'all' ? removedPoints : removedPointsFor(saveData)).map(({ id, ...rest }) => rest),
       }
     };
 
@@ -4223,15 +4410,8 @@ async function loadReport(id) {
     }
 
     // Restore state — expand compressed short keys if present.
-    // Reassign sequential _id so per-point removal works on loaded reports
-    // (the slim save format drops _id).
     const rawLoaded = report.raw_data || [];
-    processedData = rawLoaded.map((r, i) => r.pa !== undefined ? {
-      _id: i,
-      protocol: r.pr, instrument: r.in, parameter: r.pa,
-      level: r.lv, date: r.dt, value: r.v, status: r.st, sampleId: r.si || '',
-      target: 0, sd: 0, message: '', comment: '', user: ''
-    } : { ...r, _id: i });
+    processedData = rawLoaded.map(fromSlimRow);
     resultsData = report.results_data || [];
     rawData = processedData;
     // Saved reports already had the status filter applied before export, so the
@@ -4243,6 +4423,7 @@ async function loadReport(id) {
     // silently drop unrelated rows from this report.
     deletedPointIds.clear();
     const savedFilters = report.filters || {};
+    removedPoints = Array.isArray(savedFilters.removedPoints) ? savedFilters.removedPoints.slice() : [];
 
     // Restore UI. The stats bar is painted further down from the report's saved
     // date range, which also covers reports saved before that range was stored.
@@ -4668,18 +4849,15 @@ btnInsights.addEventListener('click', async () => {
   btnInsights.disabled = true;
   btnInsights.textContent = 'Generating…';
 
-  // Build date range string from rawData
-  let dateRange = '';
-  if (rawData.length > 0) {
-    const dates = rawData.map(r => parseDate(r.date)).filter(d => d && d.getTime() > 0);
-    if (dates.length > 0) {
-      const min = new Date(Math.min(...dates.map(d => d.getTime())));
-      const max = new Date(Math.max(...dates.map(d => d.getTime())));
-      dateRange = `${min.toLocaleDateString('en-GB')} to ${max.toLocaleDateString('en-GB')}`;
-    }
-  }
-
   try {
+    // Build date range string from rawData. Inside the try so a failure here
+    // still resets the button in the finally block.
+    let dateRange = '';
+    const extent = dateExtent(rawData.map(r => parseDate(r.date)));
+    if (extent) {
+      dateRange = `${extent.min.toLocaleDateString('en-GB')} to ${extent.max.toLocaleDateString('en-GB')}`;
+    }
+
     const resp = await fetch('/api/insights', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
