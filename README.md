@@ -22,6 +22,16 @@ A web-based Internal Quality Control (IQC) dashboard for clinical laboratory ins
 - **Responsive** — Mobile-friendly layout with wrapping header buttons and scrollable tables.
 - **In-App Documentation** — View README and compliance docs directly from the app via the Docs button.
 
+## Beta Features (admins only)
+
+Admins see a **Try beta** switch in the header. Off is the standard app; on adds the features below. The choice is remembered per browser, and non-admin accounts never see the switch or the beta features. Exports (PDF/XLSX/CSV) are unchanged by the switch.
+
+- **QC Review tab** — per analyte/level/instrument: bias % and mean z-score against the Target/SD columns in the instrument export, CV%, sigma metric, and Westgard multi-rule checks (1-3s, 2-2s, R-4s, 4-1s, 10x as rejection rules; 1-2s counted as a warning). Each result is scored against its own row's Target/SD, so a lot change mid-period is handled. R-4s is applied across consecutive results of the same level, because runs are not identified in the export. Click a flagged row to list the results behind it. CSV export.
+- **Lot Comparison tab** — compares mean and CV% either before/after each series' most recent Target/SD change (usually a new lot) or between two date ranges. A series fails when the mean shift exceeds its lot shift limit; series with fewer than the chosen minimum n on either side are reported as "Too few". CSV export.
+- **Quality specifications (Settings)** — per-analyte TEa % (for sigma), CV% warn/high thresholds (used for the results-table colours while beta is on, instead of the fixed 5%/10%) and lot shift limit %, with a default row. No TEa values are pre-filled; enter them from the laboratory's chosen specification. Stored in the browser; Export/Import JSON to move them between browsers.
+
+The calculations live in `public/beta-logic.js` (no DOM, unit-tested directly by `tests/beta-logic.test.js`); the UI is `public/beta.js`. Both are static files, so the beta adds no Serverless Functions.
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -40,7 +50,9 @@ A web-based Internal Quality Control (IQC) dashboard for clinical laboratory ins
 ```
 iqc-summary-statistics/
 ├── public/
-│   └── index.html          # Full SPA (HTML + CSS + JS)
+│   ├── index.html          # Full SPA (HTML + CSS + JS)
+│   ├── beta-logic.js       # Beta QC calculations (Westgard, bias, sigma, lot comparison)
+│   └── beta.js             # Beta UI (admin "Try beta" toggle)
 ├── api/                     # Every file here becomes a Serverless Function
 │   ├── auth/
 │   │   └── [action].js     # All /api/auth/* routes (see lib/auth-routes/)

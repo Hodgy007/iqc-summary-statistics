@@ -893,6 +893,28 @@
     .role-admin { background: rgba(245,158,11,0.2); color: var(--warning); }
     .role-user { background: rgba(59,130,246,0.2); color: var(--accent); }
 
+    /* Beta (admin "Try beta" toggle) */
+    .beta-only { display: none !important; }
+    body.beta-on .beta-only { display: revert !important; }
+    .beta-toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; padding: 6px 10px; border: 1px dashed var(--warning); border-radius: 6px; color: var(--warning); user-select: none; }
+    .app-header h1 .badge.beta-badge { background: var(--warning); color: #111827; }
+    .beta-intro { font-size: 12px; color: var(--text-dim); margin-bottom: 12px; line-height: 1.5; }
+    .beta-summary { font-size: 13px; margin-bottom: 12px; }
+    .beta-empty { padding: 24px; text-align: center; color: var(--text-dim); font-size: 13px; }
+    .beta-dim { color: var(--text-dim); }
+    .beta-note { color: var(--warning); cursor: help; font-weight: 700; }
+    .beta-table td, .beta-table th { white-space: nowrap; }
+    .beta-clickable { cursor: pointer; }
+    .beta-clickable:hover td { background: rgba(245, 158, 11, 0.08); }
+    .beta-rule { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 600; background: rgba(239,68,68,0.18); color: #fca5a5; }
+    .beta-result { display: inline-block; min-width: 54px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+    .beta-pass { background: rgba(34,197,94,0.16); color: #86efac; }
+    .beta-fail { background: rgba(239,68,68,0.18); color: #fca5a5; }
+    .beta-insufficient { background: rgba(148,163,184,0.18); color: var(--text-dim); }
+    .beta-detail-head { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; margin: 16px 0 8px; font-size: 13px; }
+    .beta-spec-input { width: 90px; min-width: 0 !important; padding: 4px 8px !important; }
+    input[type="date"], input[type="number"] { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 7px 10px; border-radius: 6px; font-size: 13px; color-scheme: dark; }
+
     /* Settings page */
     .settings-section {
       background: var(--surface);
@@ -1070,9 +1092,13 @@
 <!-- Main App (hidden until authenticated) -->
 <div id="appContainer" class="hidden">
 <div class="app-header">
-  <h1>IQC Summary Statistics <span class="badge">v2.0</span></h1>
+  <h1>IQC Summary Statistics <span class="badge">v2.0</span> <span class="badge beta-badge beta-only">BETA</span></h1>
   <div class="header-actions">
     <div class="user-badge" id="userBadge"></div>
+    <label class="beta-toggle" id="betaToggleWrap" style="display:none" title="Admins only. Adds QC Review and Lot Comparison tabs and per-analyte quality specs. Remembered in this browser.">
+      <span class="toggle-switch"><input type="checkbox" id="betaToggle"><span class="toggle-slider"></span></span>
+      Try beta
+    </label>
     <button class="btn" id="btnSettings" style="display:none">Settings</button>
     <button class="btn" id="btnDataStore" style="background:#7c3aed;border-color:#7c3aed">Data Store</button>
     <button class="btn" id="btnLoadReport" style="background:var(--accent);border-color:var(--accent)">Load Report</button>
@@ -1167,6 +1193,8 @@
       <button class="tab active" data-tab="results">Results Summary</button>
       <button class="tab" data-tab="charts">Charts</button>
       <button class="tab" data-tab="rawdata">Raw Data</button>
+      <button class="tab beta-only" data-tab="qcreview">QC Review (beta)</button>
+      <button class="tab beta-only" data-tab="lotcompare">Lot Comparison (beta)</button>
     </div>
 
     <!-- Results Tab -->
@@ -1338,6 +1366,55 @@
     </div>
   </div>
 
+    <!-- QC Review Tab (beta) -->
+    <div id="tab-qcreview" class="hidden">
+      <div class="beta-intro">
+        Bias and z-scores against the Target/SD columns in the instrument export, Westgard multi-rule checks
+        (1-3s, 2-2s, R-4s, 4-1s, 10x; 1-2s counted as a warning) and sigma metrics. Each result is checked against
+        its own Target/SD, so a lot change mid-period is handled. R-4s is applied across consecutive results of the
+        same level, because runs are not identified in the export. Uses the current filters. Click a flagged row for the results behind it.
+      </div>
+      <div class="filters">
+        <label class="cb-label" style="opacity:1"><input type="checkbox" id="betaOnlyFlagged" style="display:inline-block">Only series with rule violations</label>
+        <button class="btn" id="betaExportQC">Export CSV</button>
+      </div>
+      <div class="beta-summary" id="betaQCReviewSummary"></div>
+      <div class="table-container" id="betaQCReviewBody"></div>
+      <div id="betaQCDetail"></div>
+    </div>
+
+    <!-- Lot Comparison Tab (beta) -->
+    <div id="tab-lotcompare" class="hidden">
+      <div class="beta-intro">
+        Compares mean and CV% between two sets of results for each analyte, level and instrument. "Before/after
+        target change" splits each series where its Target/SD last changed (usually a new lot). A series fails when its
+        mean shift is larger than its lot shift limit (default ±5%, set per analyte under Settings › Quality specifications).
+        Uses the current filters.
+      </div>
+      <div class="filters">
+        <div class="filter-group">
+          <label>Compare</label>
+          <select id="betaLotMode">
+            <option value="target">Before/after target change</option>
+            <option value="dates">Two date ranges</option>
+          </select>
+        </div>
+        <div id="betaLotDates" style="display:none;gap:12px;flex-wrap:wrap" class="filters">
+          <div class="filter-group"><label>Period A from</label><input type="date" id="betaLotAFrom"></div>
+          <div class="filter-group"><label>Period A to</label><input type="date" id="betaLotATo"></div>
+          <div class="filter-group"><label>Period B from</label><input type="date" id="betaLotBFrom"></div>
+          <div class="filter-group"><label>Period B to</label><input type="date" id="betaLotBTo"></div>
+        </div>
+        <div class="filter-group">
+          <label>Minimum n per side</label>
+          <input type="number" id="betaLotMinN" value="10" min="1" style="width:90px">
+        </div>
+        <button class="btn" id="betaExportLot" style="align-self:flex-end">Export CSV</button>
+      </div>
+      <div class="beta-summary" id="betaLotSummary"></div>
+      <div class="table-container" id="betaLotBody"></div>
+    </div>
+
   <!-- Settings Page (admin only) -->
   <div id="settingsSection" class="hidden">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
@@ -1375,6 +1452,24 @@
         <div style="display:flex;gap:8px">
           <button class="btn" id="btnResetAiPrompt" style="padding:5px 10px;font-size:12px">Reset</button>
           <button class="btn btn-primary" id="btnSaveAiPrompt" style="padding:5px 10px;font-size:12px">Save Prompt</button>
+        </div>
+      </div>
+    </div>
+    <div class="settings-section beta-only" style="margin-top:24px">
+      <h3>Quality specifications (beta)</h3>
+      <div class="beta-intro">
+        Per-analyte limits used by the beta features: TEa % (allowable total error, for sigma), CV% warn/high thresholds
+        (replace the fixed 5%/10% colours while beta is on) and the lot shift limit for Lot Comparison. Blank cells use the
+        default row. No TEa values are pre-filled: enter them from your laboratory's chosen quality specification.
+        Saved in this browser; use Export/Import to copy them to another browser.
+      </div>
+      <div id="betaSpecsTable" class="table-container" style="max-height:420px;overflow:auto"></div>
+      <div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:10px">
+        <div id="betaSpecsMessage" style="font-size:12px;color:var(--text-dim)"></div>
+        <div style="display:flex;gap:8px">
+          <label class="btn" style="padding:5px 10px;font-size:12px">Import JSON<input type="file" id="betaSpecsImport" accept=".json,application/json" style="display:none"></label>
+          <button class="btn" id="betaSpecsExport" style="padding:5px 10px;font-size:12px">Export JSON</button>
+          <button class="btn btn-primary" id="betaSpecsSave" style="padding:5px 10px;font-size:12px">Save Specifications</button>
         </div>
       </div>
     </div>
@@ -1619,6 +1714,7 @@ function showApp() {
 
   // Settings button (admin only)
   document.getElementById('btnSettings').style.display = currentUser.role === 'admin' ? 'inline-block' : 'none';
+  if (window.iqcBeta) iqcBeta.onAuth();
 
   applyPermissions();
 }
@@ -2515,11 +2611,15 @@ function renderResultsTable() {
 
   html += '</tbody></table>';
   document.getElementById('resultsTable').innerHTML = html;
+  // Every data or filter change re-renders this table, so beta views refresh from here
+  if (window.iqcBeta) iqcBeta.onDataChanged();
 }
 
 function renderStatCells(s, param, level, instrument) {
   if (!s || s.count === 0) return '<td>-</td><td>-</td><td>-</td><td>-</td>';
-  const cvClass = s.cv > 10 ? 'cv-high' : s.cv > 5 ? 'cv-warn' : 'cv-ok';
+  // Fixed 5/10% thresholds, or the analyte's own limits while beta is on
+  const limits = (window.iqcBeta && iqcBeta.cvLimits(param)) || { warn: 5, high: 10 };
+  const cvClass = s.cv > limits.high ? 'cv-high' : s.cv > limits.warn ? 'cv-warn' : 'cv-ok';
   const d = `data-param="${escapeHtml(param)}" data-level="${escapeHtml(level)}" data-inst="${escapeHtml(instrument)}"`;
   const dp = decimalsFor(param);
   return `<td class="clickable" ${d} data-stat="mean">${s.mean.toFixed(dp)}</td>
@@ -3470,12 +3570,13 @@ document.querySelectorAll('.tab').forEach(tab => {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
     const target = tab.dataset.tab;
-    ['results', 'charts', 'rawdata'].forEach(t => {
+    ['results', 'charts', 'rawdata', 'qcreview', 'lotcompare'].forEach(t => {
       document.getElementById(`tab-${t}`).classList.toggle('hidden', t !== target);
     });
     if (target === 'charts' && processedData.length) {
       setTimeout(() => { renderLJChart(); renderCVChart(); }, 100);
     }
+    if (window.iqcBeta) iqcBeta.renderTab(target);
   });
 });
 
@@ -4895,6 +4996,8 @@ btnInsights.addEventListener('click', async () => {
   }
 });
 </script>
+<script src="/beta-logic.js"></script>
+<script src="/beta.js"></script>
 
 </body>
 </html>
