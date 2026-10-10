@@ -176,6 +176,99 @@ function parseDate(dateStr) {
   return new Date(dateStr);
 }
 
+// Local calendar date as yyyy-mm-dd. toISOString() converts to UTC first, which
+// moves a local-midnight date back a day during BST.
+function toISODateLocal(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// Parse yyyy-mm-dd as local midnight. new Date('yyyy-mm-dd') is UTC midnight,
+// which is 01:00 during BST and would drop rows from the first hour of the day.
+function parseISODateLocal(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+// Earliest and latest of an array of Dates, or null when none are valid.
+// A loop rather than Math.min(...arr): spreading 100k+ values overflows the stack.
+function dateExtent(dates) {
+  let min = Infinity, max = -Infinity;
+  for (const d of dates) {
+    const t = d.getTime();
+    if (!(t > 0)) continue;
+    if (t < min) min = t;
+    if (t > max) max = t;
+  }
+  return min === Infinity ? null : { min: new Date(min), max: new Date(max) };
+}
+
+// Highest CV% across the individual instruments and the combined column, so the
+// CV% filter catches one imprecise instrument even when the combined CV looks fine.
+function maxCV(row) {
+  let max = 0;
+  for (const key of ['AU/DxI-1', 'AU/DxI-2', 'AU/DxI-3', 'AU/DxI-4', 'combined']) {
+    const s = row[key];
+    if (s && s.count > 0 && s.cv > max) max = s.cv;
+  }
+  return max;
+}
+
+// Short-key row format for saved reports (gzip does the rest). Target, SD,
+// message, comment and user are kept so a reloaded report has the same columns
+// as a freshly processed file; reports saved before they were added load as 0/''.
+function toSlimRow(r) {
+  return {
+    pr: r.protocol, in: r.instrument, pa: r.parameter,
+    lv: r.level, dt: r.date, v: r.value, st: r.status, si: r.sampleId || '',
+    tg: r.target || 0, sd: r.sd || 0, ms: r.message || '', cm: r.comment || '', us: r.user || ''
+  };
+}
+
+// Inverse of toSlimRow. Assigns a sequential _id so per-point removal works on
+// loaded reports (the slim format drops _id). Legacy full-key rows pass through.
+function fromSlimRow(r, i) {
+  if (r.pa === undefined) return { ...r, _id: i };
+  return {
+    _id: i,
+    protocol: r.pr, instrument: r.in, parameter: r.pa,
+    level: r.lv, date: r.dt, value: r.v, status: r.st, sampleId: r.si || '',
+    target: r.tg || 0, sd: r.sd || 0, message: r.ms || '', comment: r.cm || '', user: r.us || ''
+  };
+}
+
+// Mean and SD for the Levey-Jennings reference lines.
+// 'observed' uses the plotted points themselves; 'target' uses the Target/SD
+// columns from the instrument export, picking the most frequent pair when the
+// range spans more than one (e.g. a lot change). Falls back to observed when
+// the data carries no usable target (SD of 0, or a report saved before targets
+// were stored).
+function getLJReference(points, mode, instrumentCount) {
+  const observed = computeStats(points.map(r => r.value));
+  const pooled = instrumentCount > 1 ? ' pooled across the selected instruments' : '';
+  const observedNote = `Lines show the mean and SD of the ${points.length} plotted results${pooled}.`;
+  if (mode !== 'target') return { stats: observed, note: observedNote };
+
+  const pairs = new Map();
+  for (const r of points) {
+    if (!(r.sd > 0)) continue;
+    const key = `${r.target}|${r.sd}`;
+    pairs.set(key, (pairs.get(key) || 0) + 1);
+  }
+  if (pairs.size === 0) {
+    return { stats: observed, note: 'No target/SD in this data, so the lines show the observed mean and SD instead. ' + observedNote };
+  }
+  const [bestKey, bestCount] = [...pairs.entries()].sort((a, b) => b[1] - a[1])[0];
+  const [target, sd] = bestKey.split('|').map(Number);
+  const stats = { mean: target, sd, cv: target !== 0 ? Math.abs(sd / target) * 100 : 0, count: bestCount };
+  const note = pairs.size > 1
+    ? `Lines show target ${target} ± SD ${sd}, used by ${bestCount} of ${points.length} results; ${pairs.size} different target/SD pairs are in range (possible lot change).`
+    : `Lines show target ${target} ± SD ${sd} from the instrument export.`;
+  return { stats, note };
+}
+
 const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 function escapeHtml(str) {
   if (str == null) return '';
@@ -196,6 +289,13 @@ module.exports = {
   parseDateParts,
   parseDate,
   escapeHtml,
+  toISODateLocal,
+  parseISODateLocal,
+  dateExtent,
+  maxCV,
+  toSlimRow,
+  fromSlimRow,
+  getLJReference,
   INSTRUMENTS_MAP,
   EXCLUDED_PROTOCOLS,
   LEVEL_OVERRIDE_PROTOCOLS,
