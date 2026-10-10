@@ -936,7 +936,7 @@
     @keyframes betaToastIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
     .beta-dialog-overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0,0,0,0.55); z-index: 900; }
     .beta-dialog { width: min(460px, 100%); background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
-    .beta-dialog h3 { font-size: 15px; padding: 16px 20px 0; }
+    .beta-dialog > h3 { font-size: 15px; padding: 16px 20px 0; }
     .beta-dialog-body { display: flex; flex-direction: column; gap: 10px; padding: 12px 20px; font-size: 13px; line-height: 1.5; }
     .beta-dialog-body label { font-size: 12px; color: var(--text-dim); display: flex; flex-direction: column; gap: 4px; }
     .beta-dialog-body select, .beta-dialog-body input, .beta-dialog-body textarea { width: 100%; min-width: 0; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 8px 10px; font: inherit; font-size: 13px; }
@@ -997,6 +997,42 @@
     .beta-split-card .beta-dim { font-size: 12px; margin-bottom: 6px; }
     .beta-split-card .chart-wrapper { height: 280px; }
 
+    /* Beta: what's new panel */
+    .beta-whatsnew { background: var(--surface); border: 1px solid rgba(245,158,11,0.55); border-radius: 10px; padding: 20px 24px; margin-bottom: 24px; }
+    .beta-whatsnew-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .beta-whatsnew-head h2 { font-size: 16px; font-weight: 600; }
+    .beta-whatsnew-head h2::before { content: 'BETA'; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; background: var(--warning); color: #111827; padding: 2px 7px; border-radius: 10px; margin-right: 10px; vertical-align: 2px; }
+    .beta-whatsnew-sub { font-size: 12px; color: var(--text-dim); }
+    .beta-whatsnew-head .btn { margin-left: auto; padding: 5px 12px; font-size: 12px; }
+    .beta-whatsnew-body { margin-top: 16px; }
+    .beta-whatsnew-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 16px; }
+    .beta-whatsnew-group { background: var(--bg); border-radius: 8px; padding: 14px 16px; }
+    .beta-whatsnew-group h3 { font-size: 14px; font-weight: 600; color: var(--warning); margin-bottom: 8px; }
+    .beta-whatsnew-group ul { padding-left: 18px; font-size: 13px; line-height: 1.6; color: var(--text-dim); }
+    .beta-whatsnew-group li { margin-bottom: 6px; }
+    .beta-whatsnew-group b { color: var(--text); font-weight: 600; }
+    .beta-where { display: inline-block; font-size: 11px; line-height: 1.4; padding: 1px 7px; margin: 1px 2px 0 0; border-radius: 6px; background: var(--surface2); color: var(--text); white-space: nowrap; }
+    .beta-whatsnew-sigma { margin-top: 16px; background: var(--bg); border-radius: 8px; padding: 14px 16px; }
+    .beta-whatsnew-sigma h3 { font-size: 14px; font-weight: 600; color: var(--warning); margin-bottom: 8px; }
+    .beta-sigma-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 16px 28px; }
+    .beta-sigma-grid ol { padding-left: 20px; font-size: 13px; line-height: 1.6; color: var(--text-dim); }
+    .beta-sigma-grid li { margin-bottom: 6px; }
+    .beta-whatsnew-sigma b { color: var(--text); font-weight: 600; }
+    .beta-sigma-formula { font-size: 15px; font-weight: 600; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; display: inline-block; font-variant-numeric: tabular-nums; }
+    .beta-sigma-note { font-size: 12px; color: var(--text-dim); line-height: 1.6; margin: 8px 0; }
+    .beta-sigma-bands { border-collapse: collapse; font-size: 12px; width: auto; }
+    .beta-sigma-bands td { text-align: left; padding: 3px 14px 3px 0; border-bottom: 1px solid var(--border); white-space: normal; color: var(--text-dim); }
+    .beta-sigma-bands td:first-child { font-weight: 600; white-space: nowrap; }
+    .beta-sigma-bands td:first-child { color: var(--text); }
+    .beta-sigma-bands td.band-good { color: var(--success); }
+    .beta-sigma-bands td.band-warn { color: var(--warning); }
+    .beta-sigma-bands td.band-poor { color: var(--danger); }
+    .beta-dialog.wide { width: min(980px, 100%); }
+    .beta-dialog.wide .beta-dialog-body { max-height: 70vh; overflow-y: auto; }
+    .beta-dialog .beta-whatsnew-body { margin-top: 0; }
+    .beta-dialog .beta-whatsnew-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    @media (max-width: 700px) { .beta-dialog .beta-whatsnew-grid { grid-template-columns: 1fr; } }
+
     /* Beta: light theme */
     body.beta-on.theme-light {
       --bg: #f1f5f9; --surface: #ffffff; --surface2: #e2e8f0; --border: #cbd5e1;
@@ -1019,7 +1055,7 @@
       body.beta-on { --bg: #fff; --surface: #fff; --surface2: #f1f5f9; --border: #94a3b8; --text: #000; --text-dim: #334155; background: #fff !important; }
       body.beta-on .app-header, body.beta-on .tabs, body.beta-on .filters, body.beta-on .beta-toolbar,
       body.beta-on .exclusion-panel, body.beta-on .beta-intro, body.beta-on .btn, body.beta-on .modal-overlay,
-      body.beta-on .beta-toasts, body.beta-on .beta-dialog-overlay, body.beta-on .pagination { display: none !important; }
+      body.beta-on .beta-toasts, body.beta-on .beta-dialog-overlay, body.beta-on .pagination, body.beta-on .beta-whatsnew { display: none !important; }
       body.beta-on .beta-print-only { display: block !important; margin-bottom: 10px; font-size: 11px; }
       body.beta-on .beta-print-only h2 { font-size: 15px; margin-bottom: 2px; }
       body.beta-on .main-content { padding: 0; max-width: none; }
@@ -1252,6 +1288,7 @@
       <div class="beta-menu-list" role="menu">
         <button type="button" role="menuitem" data-proxy="btnSettings">Settings</button>
         <button type="button" role="menuitem" data-action="docs">Docs</button>
+        <button type="button" role="menuitem" data-action="whatsnew">What's new in the beta</button>
         <div class="beta-menu-sep"></div>
         <div class="beta-menu-label">Theme</div>
         <button type="button" role="menuitemradio" data-theme="auto">Match system</button>
@@ -1268,6 +1305,75 @@
   <div class="beta-print-only" id="betaPrintHeader"></div>
   <!-- Upload Zone -->
   <div id="uploadSection">
+
+    <!-- What's new (beta only) -->
+    <section class="beta-whatsnew beta-only" id="betaWhatsNew" aria-labelledby="betaWhatsNewTitle">
+      <div class="beta-whatsnew-head">
+        <h2 id="betaWhatsNewTitle">New in the beta</h2>
+        <span class="beta-whatsnew-sub">On for this browser. Switch it off any time with Try beta.</span>
+        <button class="btn" type="button" id="betaWhatsNewToggle" aria-expanded="true" aria-controls="betaWhatsNewBody">Hide</button>
+      </div>
+      <div class="beta-whatsnew-body" id="betaWhatsNewBody">
+        <div class="beta-whatsnew-grid">
+          <div class="beta-whatsnew-group">
+            <h3>New analysis</h3>
+            <ul>
+              <li><b>QC Review tab</b>: bias and z-scores against your Target/SD, Westgard rule checks and sigma for each analyte, level and instrument.</li>
+              <li><b>Lot Comparison tab</b>: mean and CV% before and after a target change (new lot), or between two date ranges, with pass/fail.</li>
+              <li><b>Quality specifications</b>: set TEa, CV limits and lot shift limits per analyte. <span class="beta-where">Account › Settings</span></li>
+            </ul>
+          </div>
+          <div class="beta-whatsnew-group">
+            <h3>Overview and navigation</h3>
+            <ul>
+              <li><b>Overview tab</b>: opens after loading data, with summary tiles and a colour-coded analyte × instrument grid. Click a cell for its chart.</li>
+              <li><b>Header menus</b>: Data, Export and Account menus replace the row of buttons.</li>
+              <li><b>In-app messages</b>: notices and confirmations appear in the app, and removing a result asks for a reason from a list.</li>
+            </ul>
+          </div>
+          <div class="beta-whatsnew-group">
+            <h3>Charts</h3>
+            <ul>
+              <li><b>Westgard markers</b>: results breaking a rule show a red ✕, warnings an amber ▲, on Levey-Jennings charts.</li>
+              <li><b>One chart per instrument</b>: side-by-side charts. <span class="beta-where">Charts › Layout</span></li>
+              <li><b>Linked views</b>: open a chart straight from QC Review or the Overview grid.</li>
+            </ul>
+          </div>
+          <div class="beta-whatsnew-group">
+            <h3>Tables, theme and print</h3>
+            <ul>
+              <li><b>Results table</b>: Analyte and Level stay visible when scrolling sideways, instrument columns can be hidden, and there's a compact-rows option.</li>
+              <li><b>Filter chips</b>: active filters shown above the table, removable one at a time or with Clear all.</li>
+              <li><b>Light theme and printing</b>. <span class="beta-where">Account › Theme</span> <span class="beta-where">Export › Print current view</span></li>
+            </ul>
+          </div>
+        </div>
+        <div class="beta-whatsnew-sigma" id="betaSigmaHelp">
+          <h3>Using sigma metrics</h3>
+          <div class="beta-sigma-grid">
+            <ol>
+              <li>Open <span class="beta-where">Account › Settings</span> and scroll to <b>Quality specifications (beta)</b>.</li>
+              <li>Enter a <b>TEa %</b> (allowable total error) for each analyte from your laboratory's chosen quality specification, for example EFLM biological variation, RCPA or CLIA. A TEa in the <b>Default</b> row applies to every analyte that has no value of its own.</li>
+              <li>Click <b>Save Specifications</b>.</li>
+              <li>Open the <b>QC Review</b> tab. The <b>Sigma</b> column fills in for every series that has a TEa and a Target/SD in the data.</li>
+            </ol>
+            <div>
+              <div class="beta-sigma-formula">Sigma = (TEa % − |Bias %|) ÷ CV %</div>
+              <p class="beta-sigma-note">Bias % compares the mean with the Target in the instrument export. CV % comes from the results in view, so it follows the current filters.</p>
+              <table class="beta-sigma-bands">
+                <tbody>
+                  <tr><td class="band-good">6 or more</td><td>World class</td></tr>
+                  <tr><td>4 to 6</td><td>Good</td></tr>
+                  <tr><td class="band-warn">3 to 4</td><td>Marginal: consider stricter QC rules</td></tr>
+                  <tr><td class="band-poor">Below 3</td><td>Poor: review the method and QC frequency</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <p class="beta-sigma-note">Sigma is a guide; follow your local QC policy. Specifications are saved in this browser only. Use Export/Import JSON in Settings to copy them to another browser.</p>
+        </div>
+      </div>
+    </section>
 
     <!-- How to Use Guide -->
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:24px 28px;margin-bottom:24px">
@@ -1562,7 +1668,8 @@
         Bias and z-scores against the Target/SD columns in the instrument export, Westgard multi-rule checks
         (1-3s, 2-2s, R-4s, 4-1s, 10x; 1-2s counted as a warning) and sigma metrics. Each result is checked against
         its own Target/SD, so a lot change mid-period is handled. R-4s is applied across consecutive results of the
-        same level, because runs are not identified in the export. Uses the current filters. Click a flagged row for the results behind it.
+        same level, because runs are not identified in the export. Uses the current filters. Click a row for the results behind it.
+        Sigma needs a TEa per analyte: set it under Account › Settings › Quality specifications.
       </div>
       <div class="filters">
         <label class="cb-label" style="opacity:1"><input type="checkbox" id="betaOnlyFlagged" style="display:inline-block">Only series with rule violations</label>
@@ -1648,7 +1755,7 @@
     <div class="settings-section beta-only" style="margin-top:24px">
       <h3>Quality specifications (beta)</h3>
       <div class="beta-intro">
-        Per-analyte limits used by the beta features: TEa % (allowable total error, for sigma), CV% warn/high thresholds
+        Per-analyte limits used by the beta features: TEa % (allowable total error; Sigma = (TEa % − |Bias %|) ÷ CV %), CV% warn/high thresholds
         (replace the fixed 5%/10% colours while beta is on) and the lot shift limit for Lot Comparison. Blank cells use the
         default row. No TEa values are pre-filled: enter them from your laboratory's chosen quality specification.
         Saved in this browser; use Export/Import to copy them to another browser.

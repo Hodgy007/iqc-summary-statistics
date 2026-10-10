@@ -7,7 +7,7 @@
   const L = window.iqcBetaLogic;
   const KEYS = {
     enabled: 'iqcBetaEnabled', specs: 'iqcBetaSpecs', theme: 'iqcBetaTheme',
-    hiddenCols: 'iqcBetaHiddenCols', dense: 'iqcBetaDense',
+    hiddenCols: 'iqcBetaHiddenCols', dense: 'iqcBetaDense', whatsNewHidden: 'iqcBetaWhatsNewHidden',
   };
   const SPEC_FIELDS = [
     { key: 'teaPct', label: 'TEa %' },
@@ -172,6 +172,7 @@
       if (item.dataset.proxy) el(item.dataset.proxy).click();
       else if (item.dataset.action === 'print') printView();
       else if (item.dataset.action === 'docs') showDoc('readme');
+      else if (item.dataset.action === 'whatsnew') showWhatsNew();
       else if (item.dataset.theme) { storageSet(KEYS.theme, item.dataset.theme); applyTheme(); }
     });
     menu.addEventListener('keydown', e => {
@@ -246,11 +247,11 @@
 
   // Resolves with onConfirm()'s value (or true), or with cancelValue when cancelled.
   // onConfirm can return KEEP_OPEN to keep the dialog up after a validation error.
-  function openDialog({ title, body, confirmLabel = 'OK', danger = false, onConfirm, cancelValue = null }) {
+  function openDialog({ title, body, confirmLabel = 'OK', danger = false, onConfirm, cancelValue = null, wide = false, hideCancel = false }) {
     return new Promise(resolve => {
       const overlay = document.createElement('div');
       overlay.className = 'beta-dialog-overlay';
-      overlay.innerHTML = `<div class="beta-dialog" role="dialog" aria-modal="true" aria-labelledby="betaDialogTitle">
+      overlay.innerHTML = `<div class="beta-dialog${wide ? ' wide' : ''}" role="dialog" aria-modal="true" aria-labelledby="betaDialogTitle">
         <h3 id="betaDialogTitle"></h3>
         <div class="beta-dialog-body"></div>
         <div class="beta-dialog-actions">
@@ -261,6 +262,7 @@
       overlay.querySelector('h3').textContent = title;
       overlay.querySelector('.beta-dialog-body').append(...[].concat(body));
       overlay.querySelector('[data-act="ok"]').textContent = confirmLabel;
+      if (hideCancel) overlay.querySelector('[data-act="cancel"]').remove();
       const previousFocus = document.activeElement;
 
       const close = value => {
@@ -344,6 +346,32 @@
       },
     });
   }
+
+  // ---------- What's new ----------
+  function setWhatsNewCollapsed(collapsed, persist = true) {
+    el('betaWhatsNewBody').hidden = collapsed;
+    const toggle = el('betaWhatsNewToggle');
+    toggle.textContent = collapsed ? 'Show' : 'Hide';
+    toggle.setAttribute('aria-expanded', String(!collapsed));
+    if (persist) storageSet(KEYS.whatsNewHidden, collapsed ? '1' : null);
+  }
+
+  // Show the list of beta updates: expanded on the front screen when it is
+  // showing, otherwise in a dialog (e.g. beta switched on with data loaded).
+  function showWhatsNew() {
+    if (!el('uploadSection').classList.contains('hidden')) {
+      setWhatsNewCollapsed(false);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    const body = el('betaWhatsNewBody').cloneNode(true);
+    body.removeAttribute('id');
+    body.hidden = false;
+    openDialog({ title: 'New in the beta', body, confirmLabel: 'Got it', cancelValue: true, wide: true, hideCancel: true });
+  }
+
+  el('betaWhatsNewToggle').addEventListener('click', () => setWhatsNewCollapsed(!el('betaWhatsNewBody').hidden));
+  setWhatsNewCollapsed(storageGet(KEYS.whatsNewHidden) === '1', false);
 
   // ---------- Overview ----------
   function renderOverview() {
@@ -565,9 +593,11 @@
     const all = currentReviews();
     const flagged = all.filter(r => r.rejections > 0).length;
     const noTarget = all.filter(r => r.target === null).length;
+    const noTea = all.every(r => r.teaPct === null);
     summary.textContent =
       `${all.length} analyte/level/instrument series reviewed · ${flagged} with Westgard rejection-rule violations` +
-      (noTarget ? ` · ${noTarget} without Target/SD in the data (no bias or Westgard check)` : '');
+      (noTarget ? ` · ${noTarget} without Target/SD in the data (no bias or Westgard check)` : '') +
+      (noTea ? ' · Sigma is blank until TEa values are entered (Account › Settings › Quality specifications)' : '');
 
     let rows = all;
     if (el('betaOnlyFlagged').checked) rows = rows.filter(r => r.rejections > 0);
@@ -812,7 +842,11 @@
   }
 
   // ---------- wiring ----------
-  el('betaToggle').addEventListener('change', e => setEnabled(e.target.checked));
+  el('betaToggle').addEventListener('change', e => {
+    setEnabled(e.target.checked);
+    // Switching beta on shows what it adds
+    if (e.target.checked) showWhatsNew();
+  });
   el('betaOnlyFlagged').addEventListener('change', renderQCReview);
   el('betaExportQC').addEventListener('click', exportQCReview);
   const qcOpen = e => {
