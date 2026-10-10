@@ -30,6 +30,15 @@ Admins see a **Try beta** switch in the header. Off is the standard app; on adds
 - **Lot Comparison tab** — compares mean and CV% either before/after each series' most recent Target/SD change (usually a new lot) or between two date ranges. A series fails when the mean shift exceeds its lot shift limit; series with fewer than the chosen minimum n on either side are reported as "Too few". CSV export.
 - **Quality specifications (Settings)** — per-analyte TEa % (for sigma), CV% warn/high thresholds (used for the results-table colours while beta is on, instead of the fixed 5%/10%) and lot shift limit %, with a default row. No TEa values are pre-filled; enter them from the laboratory's chosen specification. Stored in the browser; Export/Import JSON to move them between browsers.
 
+Design changes in the beta:
+
+- **Header menus** — Data (Data Store, load, save, clear), Export (PDF, XLSX, CSV, print) and Account (Settings, Docs, theme, log out) replace the row of twelve buttons.
+- **In-app messages** — notifications appear as toasts, deletes ask in an in-app dialog, the admin password reset uses a password dialog, and removing a data point uses a dialog with a reason list (details required for "Other"). The standard version keeps the browser's own pop-ups.
+- **Overview tab** — the landing tab after loading data: summary tiles (results in view, Westgard violations, CVs above the high limit, highest CV, lot changes, date range) and an analyte × instrument status grid. Clicking a tile or cell jumps to the relevant view or Levey-Jennings chart.
+- **Charts** — results completing a Westgard rejection rule are marked with a red ✕ and 1-2s warnings with an amber ▲ (hover for the rule); a layout option draws one chart per instrument; QC Review rows link to their chart.
+- **Results table** — Analyte and Level columns stay in place when scrolling sideways, instrument column groups can be hidden, a compact-rows option, and CV status shown with a symbol as well as colour. Active filters appear as removable chips with Clear all, and the filter bar stays under the header while scrolling.
+- **Theme and print** — light or dark theme (or match the computer's setting) from the Account menu; Print current view gives an A4 landscape page with a header naming the view, date range, filters, date and user.
+
 The calculations live in `public/beta-logic.js` (no DOM, unit-tested directly by `tests/beta-logic.test.js`); the UI is `public/beta.js`. Both are static files, so the beta adds no Serverless Functions.
 
 ## Tech Stack

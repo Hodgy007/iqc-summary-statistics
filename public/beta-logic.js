@@ -180,10 +180,31 @@
     return { a, b, shiftPct, cvChange: a.n && b.n ? b.cv - a.cv : null, limitPct, result };
   }
 
+  // Overview cell status for a reviewed series, most serious first.
+  function seriesStatus(review) {
+    if (!review) return 'none';
+    if (review.rejections > 0) return 'reject';
+    return review.cvStatus; // 'high' | 'warn' | 'ok'
+  }
+
+  // Westgard rules completed at each point of a date-ordered series, with the
+  // most serious level: 'reject', 'warn' (1-2s only) or null.
+  function pointFlags(points) {
+    const flags = points.map(() => ({ rules: [], level: null }));
+    for (const v of westgard(points, modalTarget(points))) {
+      const f = flags[v.index];
+      f.rules.push(v.rule);
+      if (REJECTION_RULES.includes(v.rule)) f.level = 'reject';
+      else if (!f.level) f.level = 'warn';
+    }
+    return flags;
+  }
+
   const api = {
     DEFAULT_SPEC, REJECTION_RULES,
     stats, modalTarget, westgard, countRules, sigmaMetric, specFor,
     groupSeries, reviewSeries, splitByTargetChange, compareLots,
+    seriesStatus, pointFlags,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.iqcBetaLogic = api;

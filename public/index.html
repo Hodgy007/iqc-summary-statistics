@@ -894,8 +894,7 @@
     .role-user { background: rgba(59,130,246,0.2); color: var(--accent); }
 
     /* Beta (admin "Try beta" toggle) */
-    .beta-only { display: none !important; }
-    body.beta-on .beta-only { display: revert !important; }
+    body:not(.beta-on) .beta-only { display: none !important; }
     .beta-toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; padding: 6px 10px; border: 1px dashed var(--warning); border-radius: 6px; color: var(--warning); user-select: none; }
     .app-header h1 .badge.beta-badge { background: var(--warning); color: #111827; }
     .beta-intro { font-size: 12px; color: var(--text-dim); margin-bottom: 12px; line-height: 1.5; }
@@ -914,6 +913,123 @@
     .beta-detail-head { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; margin: 16px 0 8px; font-size: 13px; }
     .beta-spec-input { width: 90px; min-width: 0 !important; padding: 4px 8px !important; }
     input[type="date"], input[type="number"] { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 7px 10px; border-radius: 6px; font-size: 13px; color-scheme: dark; }
+
+    /* Beta: header menus */
+    body.beta-on .beta-hide { display: none !important; }
+    .beta-menu { position: relative; }
+    .beta-menu-list { display: none; position: absolute; right: 0; top: calc(100% + 4px); min-width: 200px; flex-direction: column; padding: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.35); z-index: 600; }
+    .beta-menu.open .beta-menu-list { display: flex; }
+    .beta-menu-list button { text-align: left; background: none; border: 0; color: var(--text); padding: 8px 10px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+    .beta-menu-list button:hover:not(:disabled), .beta-menu-list button:focus-visible { background: var(--surface2); outline: none; }
+    .beta-menu-list button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .beta-menu-list .danger { color: var(--danger); }
+    .beta-menu-list button[aria-checked="true"]::before { content: '✓ '; }
+    .beta-menu-sep { height: 1px; background: var(--border); margin: 4px 0; }
+    .beta-menu-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; padding: 6px 10px 2px; }
+
+    /* Beta: toasts and dialogs */
+    .beta-toasts { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 1000; max-width: min(420px, calc(100vw - 32px)); }
+    .beta-toast { display: flex; gap: 12px; align-items: flex-start; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 8px; padding: 10px 12px 10px 14px; font-size: 13px; line-height: 1.4; white-space: pre-line; box-shadow: 0 8px 24px rgba(0,0,0,0.35); animation: betaToastIn 0.15s ease-out; }
+    .beta-toast.success { border-left-color: var(--success); }
+    .beta-toast.error { border-left-color: var(--danger); }
+    .beta-toast button { margin-left: auto; background: none; border: 0; color: var(--text-dim); cursor: pointer; font-size: 16px; line-height: 1; }
+    @keyframes betaToastIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    .beta-dialog-overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0,0,0,0.55); z-index: 900; }
+    .beta-dialog { width: min(460px, 100%); background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+    .beta-dialog h3 { font-size: 15px; padding: 16px 20px 0; }
+    .beta-dialog-body { display: flex; flex-direction: column; gap: 10px; padding: 12px 20px; font-size: 13px; line-height: 1.5; }
+    .beta-dialog-body label { font-size: 12px; color: var(--text-dim); display: flex; flex-direction: column; gap: 4px; }
+    .beta-dialog-body select, .beta-dialog-body input, .beta-dialog-body textarea { width: 100%; min-width: 0; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 8px 10px; font: inherit; font-size: 13px; }
+    .beta-dialog-body textarea { min-height: 70px; resize: vertical; }
+    .beta-dialog-error { color: var(--danger); font-size: 12px; min-height: 1em; }
+    .beta-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 0 20px 16px; }
+    .beta-point { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 12px; }
+
+    /* Beta: overview */
+    .beta-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .beta-kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; text-align: left; color: var(--text); font: inherit; }
+    button.beta-kpi { cursor: pointer; }
+    button.beta-kpi:hover { border-color: var(--accent); }
+    .beta-kpi .label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+    .beta-kpi .value { font-size: 22px; font-weight: 700; margin-top: 4px; }
+    .beta-kpi .sub { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+    .beta-kpi.alert .value { color: var(--danger); }
+    .beta-heat-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+    .beta-heat-head h3 { font-size: 14px; }
+    .beta-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--text-dim); }
+    .beta-legend span::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; background: var(--sw); }
+    .beta-heat td.cell { min-width: 96px; font-variant-numeric: tabular-nums; }
+    .beta-heat td.cell:not(.s-none) { cursor: pointer; }
+    .beta-heat td.cell:not(.s-none):hover, .beta-heat td.cell:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+    .beta-heat .s-reject { background: rgba(239,68,68,0.3) !important; }
+    .beta-heat .s-high { background: rgba(239,68,68,0.15) !important; }
+    .beta-heat .s-warn { background: rgba(245,158,11,0.18) !important; }
+    .beta-heat .s-ok { background: rgba(34,197,94,0.1) !important; }
+    .beta-heat .s-none { color: var(--text-dim); }
+
+    /* Beta: results table */
+    body.beta-on #resultsTable td.analyte, body.beta-on #resultsTable td.level,
+    body.beta-on #resultsTable thead tr:first-child th:nth-child(-n+2) { position: sticky; z-index: 2; background: var(--surface); }
+    body.beta-on #resultsTable td.analyte, body.beta-on #resultsTable thead tr:first-child th:first-child { left: 0; min-width: 140px; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+    body.beta-on #resultsTable td.level, body.beta-on #resultsTable thead tr:first-child th:nth-child(2) { left: 140px; min-width: 56px; box-shadow: 2px 0 0 var(--border); }
+    body.beta-on #resultsTable thead tr:first-child th:nth-child(-n+2) { background: var(--surface2); z-index: 3; }
+    body.beta-on #resultsTable tr.even-group td.analyte, body.beta-on #resultsTable tr.even-group td.level { background: color-mix(in srgb, var(--accent) 4%, var(--surface)); }
+    body.beta-on #resultsTable.hide-g1 .g1, body.beta-on #resultsTable.hide-g2 .g2, body.beta-on #resultsTable.hide-g3 .g3,
+    body.beta-on #resultsTable.hide-g4 .g4, body.beta-on #resultsTable.hide-g5 .g5 { display: none; }
+    body.beta-on.beta-dense #resultsTable td { padding: 3px 8px; font-size: 12px; }
+    body.beta-on td.cv-high::after { content: ' ▲'; font-size: 9px; }
+    body.beta-on td.cv-warn::after { content: ' !'; font-size: 11px; }
+
+    /* Beta: filter bar and chips */
+    body.beta-on #resultsFilters { position: sticky; top: var(--beta-header-h, 0px); z-index: 50; background: var(--bg); padding: 10px 0; margin-top: -10px; }
+    .beta-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+    .beta-chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 12px; color: var(--text-dim); }
+    .beta-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 4px 3px 10px; border-radius: 999px; background: rgba(59,130,246,0.14); border: 1px solid rgba(59,130,246,0.35); color: var(--text); font-size: 12px; }
+    .beta-chip button { background: none; border: 0; color: var(--text-dim); cursor: pointer; font-size: 14px; line-height: 1; padding: 0 4px; }
+    .beta-chip button:hover { color: var(--text); }
+    .beta-link { background: none; border: 0; color: var(--accent); cursor: pointer; font-size: 12px; text-decoration: underline; padding: 0 4px; }
+    .beta-table-tools { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 12px; color: var(--text-dim); }
+    .beta-table-tools label { display: inline-flex; gap: 4px; align-items: center; cursor: pointer; padding: 3px 8px; border: 1px solid var(--border); border-radius: 6px; }
+
+    /* Beta: one chart per instrument */
+    .beta-split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(440px, 100%), 1fr)); gap: 16px; }
+    .beta-split-card h4 { font-size: 13px; margin-bottom: 6px; }
+    .beta-split-card .beta-dim { font-size: 12px; margin-bottom: 6px; }
+    .beta-split-card .chart-wrapper { height: 280px; }
+
+    /* Beta: light theme */
+    body.beta-on.theme-light {
+      --bg: #f1f5f9; --surface: #ffffff; --surface2: #e2e8f0; --border: #cbd5e1;
+      --text: #0f172a; --text-dim: #475569; --accent-hover: #1d4ed8;
+      --success: #15803d; --warning: #b45309; --danger: #dc2626;
+    }
+    body.beta-on.theme-light .app-header h1 .badge:not(.beta-badge) { color: #fff; }
+    body.beta-on.theme-light .processing-overlay { background: rgba(241,245,249,0.85); }
+    body.beta-on.theme-light .modal-overlay, body.beta-on.theme-light .beta-dialog-overlay { background: rgba(15,23,42,0.35); }
+    body.beta-on.theme-light .priority-high, body.beta-on.theme-light .beta-rule, body.beta-on.theme-light .beta-fail { color: #b91c1c; }
+    body.beta-on.theme-light .priority-medium { color: #92400e; }
+    body.beta-on.theme-light .priority-low, body.beta-on.theme-light .beta-pass { color: #166534; }
+    body.beta-on.theme-light input[type="date"], body.beta-on.theme-light input[type="number"] { color-scheme: light; }
+    body.beta-on.theme-light .toggle-slider::before { box-shadow: 0 1px 2px rgba(0,0,0,0.3); }
+
+    /* Beta: print the current view */
+    .beta-print-only { display: none; }
+    @media print {
+      @page { size: A4 landscape; margin: 10mm; }
+      body.beta-on { --bg: #fff; --surface: #fff; --surface2: #f1f5f9; --border: #94a3b8; --text: #000; --text-dim: #334155; background: #fff !important; }
+      body.beta-on .app-header, body.beta-on .tabs, body.beta-on .filters, body.beta-on .beta-toolbar,
+      body.beta-on .exclusion-panel, body.beta-on .beta-intro, body.beta-on .btn, body.beta-on .modal-overlay,
+      body.beta-on .beta-toasts, body.beta-on .beta-dialog-overlay, body.beta-on .pagination { display: none !important; }
+      body.beta-on .beta-print-only { display: block !important; margin-bottom: 10px; font-size: 11px; }
+      body.beta-on .beta-print-only h2 { font-size: 15px; margin-bottom: 2px; }
+      body.beta-on .main-content { padding: 0; max-width: none; }
+      body.beta-on .table-container { overflow: visible !important; max-height: none !important; border: 0; }
+      body.beta-on table { font-size: 8px; }
+      body.beta-on td, body.beta-on th { padding: 2px 4px !important; position: static !important; box-shadow: none !important; }
+      body.beta-on tr { break-inside: avoid; }
+      body.beta-on thead { display: table-header-group; }
+      body.beta-on .chart-card, body.beta-on .beta-kpi { break-inside: avoid; border-color: #cbd5e1; }
+    }
 
     /* Settings page */
     .settings-section {
@@ -1099,21 +1215,57 @@
       <span class="toggle-switch"><input type="checkbox" id="betaToggle"><span class="toggle-slider"></span></span>
       Try beta
     </label>
-    <button class="btn" id="btnSettings" style="display:none">Settings</button>
-    <button class="btn" id="btnDataStore" style="background:#7c3aed;border-color:#7c3aed">Data Store</button>
-    <button class="btn" id="btnLoadReport" style="background:var(--accent);border-color:var(--accent)">Load Report</button>
-    <button class="btn btn-primary" id="btnSaveReport" disabled>Save Report</button>
-    <button class="btn btn-primary" id="btnReport" disabled>Create Report (PDF)</button>
-    <button class="btn" id="btnExportXLSX" disabled>Export XLSX</button>
-    <button class="btn" id="btnExportCSV" disabled>Export CSV</button>
+    <button class="btn beta-hide" id="btnSettings" style="display:none">Settings</button>
+    <button class="btn beta-hide" id="btnDataStore" style="background:#7c3aed;border-color:#7c3aed">Data Store</button>
+    <button class="btn beta-hide" id="btnLoadReport" style="background:var(--accent);border-color:var(--accent)">Load Report</button>
+    <button class="btn btn-primary beta-hide" id="btnSaveReport" disabled>Save Report</button>
+    <button class="btn btn-primary beta-hide" id="btnReport" disabled>Create Report (PDF)</button>
+    <button class="btn beta-hide" id="btnExportXLSX" disabled>Export XLSX</button>
+    <button class="btn beta-hide" id="btnExportCSV" disabled>Export CSV</button>
+    <!-- Beta: the buttons above are grouped into these menus -->
+    <div class="beta-menu beta-only">
+      <button class="btn" type="button" aria-haspopup="menu" aria-expanded="false">Data ▾</button>
+      <div class="beta-menu-list" role="menu">
+        <button type="button" role="menuitem" data-proxy="btnDataStore">Data Store</button>
+        <button type="button" role="menuitem" data-proxy="btnLoadReport">Load report</button>
+        <button type="button" role="menuitem" data-proxy="btnSaveReport">Save report</button>
+        <div class="beta-menu-sep"></div>
+        <button type="button" role="menuitem" data-proxy="btnReset" class="danger">Clear data</button>
+      </div>
+    </div>
+    <div class="beta-menu beta-only">
+      <button class="btn btn-primary" type="button" aria-haspopup="menu" aria-expanded="false">Export ▾</button>
+      <div class="beta-menu-list" role="menu">
+        <button type="button" role="menuitem" data-proxy="btnReport">PDF report</button>
+        <button type="button" role="menuitem" data-proxy="btnExportXLSX">Excel (XLSX)</button>
+        <button type="button" role="menuitem" data-proxy="btnExportCSV">CSV</button>
+        <div class="beta-menu-sep"></div>
+        <button type="button" role="menuitem" data-action="print">Print current view</button>
+      </div>
+    </div>
     <button class="btn" id="btnInsights" disabled style="background:#0d9488;border-color:#0d9488">AI Insights</button>
-    <button class="btn btn-danger" id="btnReset" disabled>Clear Data</button>
-    <button class="btn" onclick="showDoc('readme')">Docs</button>
-    <button class="btn" id="btnLogout">Logout</button>
+    <button class="btn btn-danger beta-hide" id="btnReset" disabled>Clear Data</button>
+    <button class="btn beta-hide" onclick="showDoc('readme')">Docs</button>
+    <button class="btn beta-hide" id="btnLogout">Logout</button>
+    <div class="beta-menu beta-only">
+      <button class="btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Account and settings">Account ▾</button>
+      <div class="beta-menu-list" role="menu">
+        <button type="button" role="menuitem" data-proxy="btnSettings">Settings</button>
+        <button type="button" role="menuitem" data-action="docs">Docs</button>
+        <div class="beta-menu-sep"></div>
+        <div class="beta-menu-label">Theme</div>
+        <button type="button" role="menuitemradio" data-theme="auto">Match system</button>
+        <button type="button" role="menuitemradio" data-theme="light">Light</button>
+        <button type="button" role="menuitemradio" data-theme="dark">Dark</button>
+        <div class="beta-menu-sep"></div>
+        <button type="button" role="menuitem" data-proxy="btnLogout">Log out</button>
+      </div>
+    </div>
   </div>
 </div>
 
 <div class="main-content">
+  <div class="beta-print-only" id="betaPrintHeader"></div>
   <!-- Upload Zone -->
   <div id="uploadSection">
 
@@ -1190,6 +1342,7 @@
     <div class="stats-bar" id="statsBar"></div>
 
     <div class="tabs">
+      <button class="tab beta-only" data-tab="overview">Overview (beta)</button>
       <button class="tab active" data-tab="results">Results Summary</button>
       <button class="tab" data-tab="charts">Charts</button>
       <button class="tab" data-tab="rawdata">Raw Data</button>
@@ -1198,6 +1351,22 @@
     </div>
 
     <!-- Results Tab -->
+    <!-- Overview Tab (beta) -->
+    <div id="tab-overview" class="hidden">
+      <div class="beta-kpis" id="betaKpis"></div>
+      <div class="beta-heat-head">
+        <h3>Status by analyte and instrument</h3>
+        <div class="beta-legend">
+          <span style="--sw:rgba(239,68,68,.55)">✕ Westgard rejection</span>
+          <span style="--sw:rgba(239,68,68,.3)">▲ CV above high limit</span>
+          <span style="--sw:rgba(245,158,11,.35)">! CV above warn limit</span>
+          <span style="--sw:rgba(34,197,94,.3)">✓ OK</span>
+        </div>
+      </div>
+      <div class="beta-intro">Cells show CV% for the current filters. Click a cell to open its Levey-Jennings chart.</div>
+      <div class="table-container" id="betaHeatmap"></div>
+    </div>
+
     <div id="tab-results">
       <div class="exclusion-panel" id="exclusionPanel">
         <div class="exclusion-header" id="exclusionToggle">
@@ -1224,7 +1393,7 @@
           <div class="exclusion-list" id="exclusionList"></div>
         </div>
       </div>
-      <div class="filters">
+      <div class="filters" id="resultsFilters">
         <div class="filter-group">
           <label>Analyte</label>
           <div class="multi-select" id="analyteMultiSelect">
@@ -1303,6 +1472,18 @@
           </select>
         </div>
       </div>
+      <div class="beta-toolbar beta-only">
+        <div class="beta-chips" id="betaChips"></div>
+        <div class="beta-table-tools" id="betaTableTools">
+          <span>Columns:</span>
+          <label><input type="checkbox" data-group="g1" checked>AU/DxI-1</label>
+          <label><input type="checkbox" data-group="g2" checked>AU/DxI-2</label>
+          <label><input type="checkbox" data-group="g3" checked>AU/DxI-3</label>
+          <label><input type="checkbox" data-group="g4" checked>AU/DxI-4</label>
+          <label><input type="checkbox" data-group="g5" checked>Combined</label>
+          <label><input type="checkbox" id="betaDense">Compact rows</label>
+        </div>
+      </div>
       <div class="table-container" id="resultsTable"></div>
     </div>
 
@@ -1326,6 +1507,13 @@
             <label class="cb-label"><input type="checkbox" value="AU/DxI-4" checked><span class="cb-dot" style="background:var(--inst4)"></span>AU/DxI-4</label>
           </div>
         </div>
+        <div class="filter-group beta-only">
+          <label>Layout</label>
+          <select id="chartLayout">
+            <option value="combined">One chart</option>
+            <option value="split">One chart per instrument</option>
+          </select>
+        </div>
         <div class="filter-group">
           <label>Reference lines</label>
           <select id="chartReference">
@@ -1338,7 +1526,9 @@
         <div class="chart-card">
           <h3>Levey-Jennings Control Chart</h3>
           <div id="ljChartNote" style="font-size:12px;color:var(--text-dim);margin:-8px 0 12px"></div>
-          <div class="chart-wrapper"><canvas id="ljChart"></canvas></div>
+          <div class="chart-wrapper" id="ljMainWrap"><canvas id="ljChart"></canvas></div>
+          <div class="beta-split-grid" id="ljSplit" style="display:none"></div>
+          <div class="beta-only beta-dim" style="font-size:12px;margin-top:8px">Markers: red ✕ = result completing a Westgard rejection rule, amber ▲ = 1-2s warning. Hover a point for the rule.</div>
         </div>
         <div class="chart-card">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:16px">
@@ -1662,6 +1852,31 @@ function escapeHtml(str) {
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
+// Messages and questions go through these so the beta can show them in-app;
+// the standard version keeps the browser's own alert/confirm/prompt.
+const betaUI = () => window.iqcBeta && iqcBeta.isEnabled();
+function notify(message, type = 'info') {
+  if (betaUI()) iqcBeta.toast(message, type);
+  else alert(message);
+}
+async function askConfirm(message, confirmLabel = 'Delete') {
+  return betaUI() ? iqcBeta.confirmDialog(message, confirmLabel) : confirm(message);
+}
+// Reason for removing a data point, or null if cancelled
+async function askRemovalReason(point) {
+  if (betaUI()) return iqcBeta.removalReasonDialog(point);
+  const reason = prompt(
+    `Reason for removing this result (recorded in the activity log and saved reports):\n\n` +
+    `${point.parameter} level ${point.level}, ${point.instrument}, ${formatDate(point.date)}, value ${point.value}`
+  );
+  if (reason === null) return null;
+  if (!reason.trim()) { alert('A reason is required to remove a data point.'); return null; }
+  return reason.trim();
+}
+async function askNewPassword(email) {
+  return betaUI() ? iqcBeta.passwordDialog(email) : prompt(`Enter new password for ${email}\n(minimum 8 characters):`);
+}
+
 function logUserActivity(action, detail) {
   fetch('/api/activity', {
     method: 'POST',
@@ -1736,7 +1951,7 @@ function applyPermissions() {
 }
 
 function handleSessionExpired() {
-  alert('Your session has expired. Please log in again.');
+  notify('Your session has expired. Please log in again.', 'error');
   showAuthScreen();
 }
 
@@ -1903,7 +2118,7 @@ async function updateUserStatus(userId, status) {
       body: JSON.stringify({ userId, status })
     });
     loadUsers();
-  } catch (err) { alert('Error: ' + err.message); }
+  } catch (err) { notify('Error: ' + err.message, 'error'); }
 }
 
 async function updateUserPermission(userId, permission) {
@@ -1914,7 +2129,7 @@ async function updateUserPermission(userId, permission) {
       body: JSON.stringify({ userId, permission })
     });
     loadUsers();
-  } catch (err) { alert('Error: ' + err.message); }
+  } catch (err) { notify('Error: ' + err.message, 'error'); }
 }
 
 // Change own password
@@ -1954,9 +2169,9 @@ document.getElementById('usersList').addEventListener('click', e => {
 });
 
 async function resetUserPassword(userId, email) {
-  const newPassword = prompt(`Enter new password for ${email}\n(minimum 8 characters):`);
+  const newPassword = await askNewPassword(email);
   if (!newPassword) return;
-  if (newPassword.length < 8) { alert('Password must be at least 8 characters'); return; }
+  if (newPassword.length < 8) { notify('Password must be at least 8 characters', 'error'); return; }
 
   try {
     const resp = await fetch('/api/admin/reset-password', {
@@ -1966,11 +2181,11 @@ async function resetUserPassword(userId, email) {
     });
     const data = await resp.json();
     if (resp.ok) {
-      alert(`Password reset successfully for ${email}`);
+      notify(`Password reset successfully for ${email}`, 'success');
     } else {
-      alert('Error: ' + (data.error || 'Failed to reset password'));
+      notify('Error: ' + (data.error || 'Failed to reset password'), 'error');
     }
-  } catch (err) { alert('Error: ' + err.message); }
+  } catch (err) { notify('Error: ' + err.message, 'error'); }
 }
 
 // =============================================
@@ -2580,12 +2795,12 @@ function renderResultsTable() {
     <tr>
       <th rowspan="2" style="text-align:left;min-width:120px">Analyte</th>
       <th rowspan="2" style="width:50px">Level</th>
-      ${instruments.map((inst, i) => `<th colspan="4" class="group-header ${instClasses[i]}">${inst}</th>`).join('')}
-      <th colspan="4" class="group-header combined">Combined</th>
+      ${instruments.map((inst, i) => `<th colspan="4" class="group-header ${instClasses[i]} g${i + 1}">${inst}</th>`).join('')}
+      <th colspan="4" class="group-header combined g5">Combined</th>
     </tr>
     <tr>
       ${[...instruments, 'Combined'].map((_, i) => `
-        <th>Mean</th><th>SD</th><th>CV%</th><th>n</th>
+        <th class="g${i + 1}">Mean</th><th class="g${i + 1}">SD</th><th class="g${i + 1}">CV%</th><th class="g${i + 1}">n</th>
       `).join('')}
     </tr>
   </thead><tbody>`;
@@ -2615,17 +2830,21 @@ function renderResultsTable() {
   if (window.iqcBeta) iqcBeta.onDataChanged();
 }
 
+// Column-group class per instrument, used by the beta column toggles
+const STAT_GROUP = { 'AU/DxI-1': 'g1', 'AU/DxI-2': 'g2', 'AU/DxI-3': 'g3', 'AU/DxI-4': 'g4', combined: 'g5' };
+
 function renderStatCells(s, param, level, instrument) {
-  if (!s || s.count === 0) return '<td>-</td><td>-</td><td>-</td><td>-</td>';
+  const g = STAT_GROUP[instrument];
+  if (!s || s.count === 0) return `<td class="${g}">-</td><td class="${g}">-</td><td class="${g}">-</td><td class="${g}">-</td>`;
   // Fixed 5/10% thresholds, or the analyte's own limits while beta is on
   const limits = (window.iqcBeta && iqcBeta.cvLimits(param)) || { warn: 5, high: 10 };
   const cvClass = s.cv > limits.high ? 'cv-high' : s.cv > limits.warn ? 'cv-warn' : 'cv-ok';
   const d = `data-param="${escapeHtml(param)}" data-level="${escapeHtml(level)}" data-inst="${escapeHtml(instrument)}"`;
   const dp = decimalsFor(param);
-  return `<td class="clickable" ${d} data-stat="mean">${s.mean.toFixed(dp)}</td>
-    <td class="clickable" ${d} data-stat="sd">${s.sd.toFixed(dp)}</td>
-    <td class="clickable ${cvClass}" ${d} data-stat="cv">${s.cv.toFixed(2)}</td>
-    <td class="clickable" ${d} data-stat="n">${s.count}</td>`;
+  return `<td class="clickable ${g}" ${d} data-stat="mean">${s.mean.toFixed(dp)}</td>
+    <td class="clickable ${g}" ${d} data-stat="sd">${s.sd.toFixed(dp)}</td>
+    <td class="clickable ${cvClass} ${g}" ${d} data-stat="cv">${s.cv.toFixed(2)}</td>
+    <td class="clickable ${g}" ${d} data-stat="n">${s.count}</td>`;
 }
 
 function renderRawData() {
@@ -2742,26 +2961,33 @@ function renderLJChart() {
   const param = document.getElementById('chartAnalyte').value;
   const level = document.getElementById('chartLevel').value;
   const selectedInsts = getSelectedInstruments();
-
   const note = document.getElementById('ljChartNote');
-  const filtered = selectedInsts.length ? processedData.filter(r =>
-    r.parameter === param && r.level === level && selectedInsts.includes(r.instrument)
-  ) : [];
 
-  const sorted = [...filtered].sort((a, b) => parseDate(a.date) - parseDate(b.date));
+  // Clear the previous chart rather than leaving it on screen for a selection it doesn't match
+  if (ljChartInstance) { ljChartInstance.destroy(); ljChartInstance = null; }
+  // Beta: one chart per instrument instead of a single pooled chart
+  if (window.iqcBeta && iqcBeta.renderLJSplit(param, level, selectedInsts)) { note.textContent = ''; return; }
+  if (!selectedInsts.length) { note.textContent = 'Select at least one instrument.'; return; }
+
+  const result = drawLJChart(document.getElementById('ljChart'), param, level, selectedInsts,
+    document.getElementById('chartReference').value);
+  ljChartInstance = result.chart;
+  note.textContent = result.note;
+}
+
+// Draws a Levey-Jennings chart for one analyte/level over the given instruments.
+// Returns { chart, note }; chart is null when there is no data to plot.
+function drawLJChart(canvas, param, level, insts, referenceMode) {
+  const sorted = processedData
+    .filter(r => r.parameter === param && r.level === level && insts.includes(r.instrument))
+    .sort((a, b) => parseDate(a.date) - parseDate(b.date));
   if (!sorted.length) {
-    // Clear the previous chart rather than leaving it on screen for a selection it doesn't match
-    if (ljChartInstance) { ljChartInstance.destroy(); ljChartInstance = null; }
-    note.textContent = selectedInsts.length
-      ? `No data for ${param} level ${level} on the selected instruments.`
-      : 'Select at least one instrument.';
-    return;
+    return { chart: null, note: `No data for ${param} level ${level} on the selected instruments.` };
   }
 
   const dp = decimalsFor(param);
-  const reference = getLJReference(sorted, document.getElementById('chartReference').value, selectedInsts.length);
+  const reference = getLJReference(sorted, referenceMode, insts.length);
   const stats = reference.stats;
-  note.textContent = reference.note;
 
   const colors = {
     'AU/DxI-1': 'rgba(59, 130, 246, 0.8)',
@@ -2771,15 +2997,21 @@ function renderLJChart() {
   };
 
   const datasets = [];
-  for (const inst of selectedInsts) {
+  for (const inst of insts) {
     const instData = sorted.filter(r => r.instrument === inst);
     if (instData.length === 0) continue;
+    // Beta: per-point Westgard markers (null when beta is off)
+    const marks = window.iqcBeta ? iqcBeta.ljMarkers(instData) : null;
     datasets.push({
       label: inst,
-      data: instData.map(r => ({ x: parseDate(r.date).getTime(), y: r.value, fullDate: r.date })),
+      data: instData.map((r, i) => ({ x: parseDate(r.date).getTime(), y: r.value, fullDate: r.date, rules: marks ? marks[i].rules : null })),
       borderColor: colors[inst],
       backgroundColor: colors[inst],
-      pointRadius: 3,
+      pointRadius: marks ? marks.map(m => m.radius) : 3,
+      pointStyle: marks ? marks.map(m => m.style) : 'circle',
+      pointBackgroundColor: marks ? marks.map(m => m.color || colors[inst]) : colors[inst],
+      pointBorderColor: marks ? marks.map(m => m.color || colors[inst]) : colors[inst],
+      pointBorderWidth: marks ? marks.map(m => (m.color ? 2 : 1)) : 1,
       pointHoverRadius: 6,
       borderWidth: 1.5,
       tension: 0,
@@ -2787,10 +3019,7 @@ function renderLJChart() {
     });
   }
 
-  if (ljChartInstance) ljChartInstance.destroy();
-
-  const ctx = document.getElementById('ljChart').getContext('2d');
-  ljChartInstance = new Chart(ctx, {
+  const chart = new Chart(canvas.getContext('2d'), {
     type: 'scatter',
     data: { datasets },
     options: {
@@ -2845,7 +3074,8 @@ function renderLJChart() {
             },
             label: ctx => {
               const v = ctx.parsed?.y ?? ctx.raw?.y ?? ctx.raw;
-              return `${ctx.dataset.label}: ${Number(v).toFixed(dp)}`;
+              const rules = ctx.raw?.rules;
+              return `${ctx.dataset.label}: ${Number(v).toFixed(dp)}${rules && rules.length ? ' — ' + rules.join(', ') : ''}`;
             }
           }
         }
@@ -2904,6 +3134,7 @@ function renderLJChart() {
       }
     }
   });
+  return { chart, note: reference.note };
 }
 
 function renderCVChart() {
@@ -3245,7 +3476,7 @@ function exportPDF(scope = 'all') {
   doc.save(`QCAudit-Report-${dateStr}${suffix}.pdf`);
   } catch(err) {
     console.error('PDF export error:', err);
-    alert('Error generating PDF: ' + err.message);
+    notify('Error generating PDF: ' + err.message, 'error');
   }
 }
 
@@ -3444,7 +3675,7 @@ fileInput.addEventListener('change', e => handleFiles(e.target.files));
 function handleFiles(files) {
   for (const f of files) {
     if (f.size > MAX_FILE_SIZE) {
-      alert(`File "${f.name}" exceeds the 50MB size limit and was skipped.`);
+      notify(`File "${f.name}" exceeds the 50MB size limit and was skipped.`, 'error');
       continue;
     }
     if (f.name.toLowerCase().endsWith('.csv') && !uploadedFiles.find(u => u.name === f.name)) {
@@ -3555,9 +3786,10 @@ async function processFiles() {
     document.getElementById('btnReset').disabled = false;
 
     logUserActivity('data_process', `${rawData.length} records, ${resultsData.length} analyte groups`);
+    if (window.iqcBeta) iqcBeta.onDataLoaded();
 
   } catch (err) {
-    alert('Error processing data: ' + err.message);
+    notify('Error processing data: ' + err.message, 'error');
     console.error(err);
   }
 
@@ -3570,7 +3802,7 @@ document.querySelectorAll('.tab').forEach(tab => {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
     const target = tab.dataset.tab;
-    ['results', 'charts', 'rawdata', 'qcreview', 'lotcompare'].forEach(t => {
+    ['overview', 'results', 'charts', 'rawdata', 'qcreview', 'lotcompare'].forEach(t => {
       document.getElementById(`tab-${t}`).classList.toggle('hidden', t !== target);
     });
     if (target === 'charts' && processedData.length) {
@@ -4032,18 +4264,14 @@ modalBody.addEventListener('click', e => {
   if (btn) deleteDataPoint(Number(btn.dataset.pointId));
 });
 
-function deleteDataPoint(pointId) {
+async function deleteDataPoint(pointId) {
   const { param, level, inst, stat } = modalMeta;
   const point = modalPoints.find(p => p._id === pointId);
   if (!point) return;
-  const reason = prompt(
-    `Reason for removing this result (recorded in the activity log and saved reports):\n\n` +
-    `${point.parameter} level ${point.level}, ${point.instrument}, ${formatDate(point.date)}, value ${point.value}`
-  );
-  if (reason === null) return;
-  if (!reason.trim()) { alert('A reason is required to remove a data point.'); return; }
+  const reason = await askRemovalReason(point);
+  if (!reason) return;
 
-  const cleanReason = reason.trim().slice(0, 200);
+  const cleanReason = reason.slice(0, 200);
   deletedPointIds.add(pointId);
   removedPoints.push({
     id: pointId,
@@ -4347,7 +4575,7 @@ document.getElementById('saveModalConfirm').addEventListener('click', async () =
     const bodyMB = (bodyStr.length / 1024 / 1024).toFixed(2);
 
     if (bodyStr.length > 4.2 * 1024 * 1024) {
-      alert(`Compressed payload still too large (${bodyMB}MB). Try applying filters to reduce the dataset.`);
+      notify(`Compressed payload still too large (${bodyMB}MB). Try applying filters to reduce the dataset.`, 'error');
       btn.disabled = false;
       btn.textContent = 'Save Report';
       return;
@@ -4362,15 +4590,15 @@ document.getElementById('saveModalConfirm').addEventListener('click', async () =
     });
     const data = await resp.json();
     if (!resp.ok) {
-      alert('Error saving: ' + (data.error || data.detail || 'Unknown error'));
+      notify('Error saving: ' + (data.error || data.detail || 'Unknown error'), 'error');
       btn.disabled = false;
       btn.textContent = 'Save Report';
       return;
     }
 
-    alert(`Report saved: ${data.name}`);
+    notify(`Report saved: ${data.name}`, 'success');
   } catch (err) {
-    alert('Error saving report: ' + err.message);
+    notify('Error saving report: ' + err.message, 'error');
   }
 
   btn.disabled = false;
@@ -4470,7 +4698,7 @@ async function loadReport(id) {
     const report = await resp.json();
 
     if (!resp.ok) {
-      alert('Error: ' + (report.error || 'Could not load report'));
+      notify('Error: ' + (report.error || 'Could not load report'), 'error');
       return;
     }
 
@@ -4587,14 +4815,15 @@ async function loadReport(id) {
     document.getElementById('btnReset').disabled = false;
 
     loadModalOverlay.classList.remove('active');
-    alert('Report loaded: ' + report.name);
+    if (window.iqcBeta) iqcBeta.onDataLoaded();
+    notify('Report loaded: ' + report.name, 'success');
   } catch (err) {
-    alert('Error loading report: ' + err.message);
+    notify('Error loading report: ' + err.message, 'error');
   }
 }
 
 async function deleteReport(id) {
-  if (!confirm('Delete this report permanently?')) return;
+  if (!(await askConfirm('Delete this report permanently?'))) return;
 
   try {
     const resp = await fetch(`/api/reports/${id}`, { method: 'DELETE' });
@@ -4602,10 +4831,10 @@ async function deleteReport(id) {
       document.getElementById('btnLoadReport').click(); // Refresh list
     } else {
       const data = await resp.json();
-      alert('Error: ' + (data.error || 'Could not delete'));
+      notify('Error: ' + (data.error || 'Could not delete'), 'error');
     }
   } catch (err) {
-    alert('Error: ' + err.message);
+    notify('Error: ' + err.message, 'error');
   }
 }
 
@@ -4700,9 +4929,9 @@ dataStoreUploadBtn.addEventListener('click', async () => {
   dataStoreUploadInfo.textContent = '';
 
   if (errors.length > 0) {
-    alert(`Uploaded ${uploaded}/${files.length} files.\nErrors:\n${errors.join('\n')}`);
+    notify(`Uploaded ${uploaded}/${files.length} files.\nErrors:\n${errors.join('\n')}`, 'error');
   } else {
-    alert(`Uploaded ${uploaded} file${uploaded > 1 ? 's' : ''} successfully.`);
+    notify(`Uploaded ${uploaded} file${uploaded > 1 ? 's' : ''} successfully.`, 'success');
   }
 
   loadDataStoreList();
@@ -4773,12 +5002,12 @@ async function downloadStoredCSV(id, name) {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   } catch (err) {
-    alert('Error downloading file: ' + err.message);
+    notify('Error downloading file: ' + err.message, 'error');
   }
 }
 
 async function deleteStoredCSV(id) {
-  if (!confirm('Delete this CSV file permanently?')) return;
+  if (!(await askConfirm('Delete this CSV file permanently?'))) return;
 
   try {
     const resp = await fetch(`/api/csv-store/${id}`, { method: 'DELETE' });
@@ -4786,10 +5015,10 @@ async function deleteStoredCSV(id) {
       loadDataStoreList();
     } else {
       const data = await resp.json();
-      alert('Error: ' + (data.error || 'Could not delete'));
+      notify('Error: ' + (data.error || 'Could not delete'), 'error');
     }
   } catch (err) {
-    alert('Error: ' + err.message);
+    notify('Error: ' + err.message, 'error');
   }
 }
 
@@ -4935,7 +5164,7 @@ btnCopyInsights.addEventListener('click', async () => {
 btnInsights.addEventListener('click', async () => {
   const insightResults = getVisibleResults();
   if (insightResults.length === 0) {
-    alert('No visible results to analyse. Adjust the filters and try again.');
+    notify('No visible results to analyse. Adjust the filters and try again.', 'error');
     return;
   }
 

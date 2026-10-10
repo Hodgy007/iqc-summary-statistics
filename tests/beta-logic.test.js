@@ -120,3 +120,22 @@ describe('lot comparison', () => {
     expect(B.compareLots([], [110].map(v => pt(v)), 5, 1).result).toBe('insufficient');
   });
 });
+
+describe('seriesStatus', () => {
+  test('rejections outrank CV status', () => {
+    expect(B.seriesStatus({ rejections: 2, cvStatus: 'ok' })).toBe('reject');
+    expect(B.seriesStatus({ rejections: 0, cvStatus: 'warn' })).toBe('warn');
+    expect(B.seriesStatus(undefined)).toBe('none');
+  });
+});
+
+describe('pointFlags', () => {
+  test('marks each point with the rules it completes and the worst level', () => {
+    const flags = B.pointFlags([pt(100), pt(125), pt(131), pt(100)]);
+    expect(flags[0]).toEqual({ rules: [], level: null });
+    expect(flags[1]).toEqual({ rules: ['1-2s'], level: 'warn' });
+    expect(flags[2].rules).toEqual(['1-3s', '2-2s']);
+    expect(flags[2].level).toBe('reject');
+    expect(flags[3].level).toBeNull();
+  });
+});
