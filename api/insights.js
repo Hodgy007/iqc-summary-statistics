@@ -198,23 +198,46 @@ Interpretation guide:
   res.setHeader('X-Accel-Buffering', 'no');
   res.status(200);
 
+  // streamText does not throw model/gateway errors: it reports them through
+  // onError and ends the text stream early, so capture the error here.
+  let streamError = null;
   try {
     const result = streamText({
       model: 'anthropic/claude-opus-4.7',
       system: 'You are a clinical laboratory quality control specialist with expertise in IQC data interpretation for clinical biochemistry analysers. Provide concise Markdown tables and actionable recommendations focused on analytical quality and patient safety.',
       prompt: userPrompt,
-      temperature: 0.2,
+      // No temperature: Claude Opus 4.7 rejects sampling parameters
       maxOutputTokens: MAX_OUTPUT_TOKENS,
+      onError: ({ error }) => {
+        streamError = error;
+        console.error('Insights error:', error);
+      },
     });
 
     for await (const chunk of result.textStream) {
       res.write(chunk);
     }
-    res.write(AI_INSIGHTS_DISCLAIMER);
   } catch (err) {
+    streamError = err;
     console.error('Insights error:', err);
-    res.write(`\n\n[Error generating insights: ${err.message}]`);
   }
 
+  res.write(streamError ? `\n\n[${describeInsightsError(streamError)}]` : AI_INSIGHTS_DISCLAIMER);
   res.end();
+}
+
+// User-facing message for a failed insights request. Details stay in the
+// server log; only the cause category is shown.
+export function describeInsightsError(error) {
+  const status = error?.statusCode ?? error?.cause?.statusCode;
+  if (status === 402) {
+    return 'AI Insights is unavailable: the Vercel AI Gateway account has no credit. An administrator needs to add credit in Vercel (AI Gateway) and try again.';
+  }
+  if (status === 401 || status === 403) {
+    return 'AI Insights is unavailable: the AI Gateway rejected the app\'s credentials. An administrator needs to check the AI Gateway configuration.';
+  }
+  if (status === 429) {
+    return 'AI Insights is busy (rate limited). Please try again in a minute.';
+  }
+  return 'AI Insights could not generate a response. Please try again later.';
 }
