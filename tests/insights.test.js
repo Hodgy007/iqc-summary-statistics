@@ -44,10 +44,12 @@ test('streams the model text followed by the disclaimer', async () => {
   expect(res.ended).toBe(true);
 });
 
-test('does not send temperature (Claude Opus 4.7 rejects sampling parameters)', async () => {
+test('uses Claude Sonnet 5.5 without temperature (it rejects sampling parameters)', async () => {
   mockStreamText.mockReturnValue({ textStream: chunks('ok') });
   await handler(req, createRes());
-  expect(mockStreamText.mock.calls[0][0]).not.toHaveProperty('temperature');
+  const opts = mockStreamText.mock.calls[0][0];
+  expect(opts.model).toBe('anthropic/claude-sonnet-5.5');
+  expect(opts).not.toHaveProperty('temperature');
 });
 
 test('a gateway error reported via onError is shown to the user, not swallowed', async () => {

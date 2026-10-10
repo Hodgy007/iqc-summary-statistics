@@ -2,7 +2,8 @@ import { streamText } from 'ai';
 import { requireAuth } from '../lib/auth.js';
 
 const INSTRUMENTS = ['AU/DxI-1', 'AU/DxI-2', 'AU/DxI-3', 'AU/DxI-4'];
-const DEFAULT_MAX_OUTPUT_TOKENS = 8192;
+// Room for the model's thinking as well as the report (thinking counts toward the cap)
+const DEFAULT_MAX_OUTPUT_TOKENS = 16000;
 const MAX_OUTPUT_TOKENS = Number.parseInt(process.env.AI_INSIGHTS_MAX_TOKENS || '', 10) || DEFAULT_MAX_OUTPUT_TOKENS;
 const AI_INSIGHTS_DISCLAIMER = `
 
@@ -203,10 +204,10 @@ Interpretation guide:
   let streamError = null;
   try {
     const result = streamText({
-      model: 'anthropic/claude-opus-4.7',
+      model: 'anthropic/claude-sonnet-5.5',
       system: 'You are a clinical laboratory quality control specialist with expertise in IQC data interpretation for clinical biochemistry analysers. Provide concise Markdown tables and actionable recommendations focused on analytical quality and patient safety.',
       prompt: userPrompt,
-      // No temperature: Claude Opus 4.7 rejects sampling parameters
+      // No temperature: Claude Sonnet 5.5 rejects sampling parameters
       maxOutputTokens: MAX_OUTPUT_TOKENS,
       onError: ({ error }) => {
         streamError = error;
