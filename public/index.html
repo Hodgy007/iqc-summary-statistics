@@ -1012,8 +1012,21 @@
     .beta-whatsnew-group li { margin-bottom: 6px; }
     .beta-whatsnew-group b { color: var(--text); font-weight: 600; }
     .beta-where { display: inline-block; font-size: 11px; line-height: 1.4; padding: 1px 7px; margin: 1px 2px 0 0; border-radius: 6px; background: var(--surface2); color: var(--text); white-space: nowrap; }
-    .beta-whatsnew-start { margin-top: 14px; font-size: 12px; color: var(--text-dim); line-height: 1.6; }
-    .beta-whatsnew-start b { color: var(--text); }
+    .beta-whatsnew-sigma { margin-top: 16px; background: var(--bg); border-radius: 8px; padding: 14px 16px; }
+    .beta-whatsnew-sigma h3 { font-size: 14px; font-weight: 600; color: var(--warning); margin-bottom: 8px; }
+    .beta-sigma-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 16px 28px; }
+    .beta-sigma-grid ol { padding-left: 20px; font-size: 13px; line-height: 1.6; color: var(--text-dim); }
+    .beta-sigma-grid li { margin-bottom: 6px; }
+    .beta-whatsnew-sigma b { color: var(--text); font-weight: 600; }
+    .beta-sigma-formula { font-size: 15px; font-weight: 600; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; display: inline-block; font-variant-numeric: tabular-nums; }
+    .beta-sigma-note { font-size: 12px; color: var(--text-dim); line-height: 1.6; margin: 8px 0; }
+    .beta-sigma-bands { border-collapse: collapse; font-size: 12px; width: auto; }
+    .beta-sigma-bands td { text-align: left; padding: 3px 14px 3px 0; border-bottom: 1px solid var(--border); white-space: normal; color: var(--text-dim); }
+    .beta-sigma-bands td:first-child { font-weight: 600; white-space: nowrap; }
+    .beta-sigma-bands td:first-child { color: var(--text); }
+    .beta-sigma-bands td.band-good { color: var(--success); }
+    .beta-sigma-bands td.band-warn { color: var(--warning); }
+    .beta-sigma-bands td.band-poor { color: var(--danger); }
     .beta-dialog.wide { width: min(980px, 100%); }
     .beta-dialog.wide .beta-dialog-body { max-height: 70vh; overflow-y: auto; }
     .beta-dialog .beta-whatsnew-body { margin-top: 0; }
@@ -1335,9 +1348,29 @@
             </ul>
           </div>
         </div>
-        <div class="beta-whatsnew-start">
-          <b>Getting started:</b> enter TEa values under Account › Settings › Quality specifications to see sigma metrics.
-          Beta settings are saved in this browser only. Use Export/Import JSON there to copy them to another browser.
+        <div class="beta-whatsnew-sigma" id="betaSigmaHelp">
+          <h3>Using sigma metrics</h3>
+          <div class="beta-sigma-grid">
+            <ol>
+              <li>Open <span class="beta-where">Account › Settings</span> and scroll to <b>Quality specifications (beta)</b>.</li>
+              <li>Enter a <b>TEa %</b> (allowable total error) for each analyte from your laboratory's chosen quality specification, for example EFLM biological variation, RCPA or CLIA. A TEa in the <b>Default</b> row applies to every analyte that has no value of its own.</li>
+              <li>Click <b>Save Specifications</b>.</li>
+              <li>Open the <b>QC Review</b> tab. The <b>Sigma</b> column fills in for every series that has a TEa and a Target/SD in the data.</li>
+            </ol>
+            <div>
+              <div class="beta-sigma-formula">Sigma = (TEa % − |Bias %|) ÷ CV %</div>
+              <p class="beta-sigma-note">Bias % compares the mean with the Target in the instrument export. CV % comes from the results in view, so it follows the current filters.</p>
+              <table class="beta-sigma-bands">
+                <tbody>
+                  <tr><td class="band-good">6 or more</td><td>World class</td></tr>
+                  <tr><td>4 to 6</td><td>Good</td></tr>
+                  <tr><td class="band-warn">3 to 4</td><td>Marginal: consider stricter QC rules</td></tr>
+                  <tr><td class="band-poor">Below 3</td><td>Poor: review the method and QC frequency</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <p class="beta-sigma-note">Sigma is a guide; follow your local QC policy. Specifications are saved in this browser only. Use Export/Import JSON in Settings to copy them to another browser.</p>
         </div>
       </div>
     </section>
@@ -1635,7 +1668,8 @@
         Bias and z-scores against the Target/SD columns in the instrument export, Westgard multi-rule checks
         (1-3s, 2-2s, R-4s, 4-1s, 10x; 1-2s counted as a warning) and sigma metrics. Each result is checked against
         its own Target/SD, so a lot change mid-period is handled. R-4s is applied across consecutive results of the
-        same level, because runs are not identified in the export. Uses the current filters. Click a flagged row for the results behind it.
+        same level, because runs are not identified in the export. Uses the current filters. Click a row for the results behind it.
+        Sigma needs a TEa per analyte: set it under Account › Settings › Quality specifications.
       </div>
       <div class="filters">
         <label class="cb-label" style="opacity:1"><input type="checkbox" id="betaOnlyFlagged" style="display:inline-block">Only series with rule violations</label>
@@ -1721,7 +1755,7 @@
     <div class="settings-section beta-only" style="margin-top:24px">
       <h3>Quality specifications (beta)</h3>
       <div class="beta-intro">
-        Per-analyte limits used by the beta features: TEa % (allowable total error, for sigma), CV% warn/high thresholds
+        Per-analyte limits used by the beta features: TEa % (allowable total error; Sigma = (TEa % − |Bias %|) ÷ CV %), CV% warn/high thresholds
         (replace the fixed 5%/10% colours while beta is on) and the lot shift limit for Lot Comparison. Blank cells use the
         default row. No TEa values are pre-filled: enter them from your laboratory's chosen quality specification.
         Saved in this browser; use Export/Import to copy them to another browser.

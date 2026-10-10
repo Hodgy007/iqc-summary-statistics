@@ -593,9 +593,11 @@
     const all = currentReviews();
     const flagged = all.filter(r => r.rejections > 0).length;
     const noTarget = all.filter(r => r.target === null).length;
+    const noTea = all.every(r => r.teaPct === null);
     summary.textContent =
       `${all.length} analyte/level/instrument series reviewed · ${flagged} with Westgard rejection-rule violations` +
-      (noTarget ? ` · ${noTarget} without Target/SD in the data (no bias or Westgard check)` : '');
+      (noTarget ? ` · ${noTarget} without Target/SD in the data (no bias or Westgard check)` : '') +
+      (noTea ? ' · Sigma is blank until TEa values are entered (Account › Settings › Quality specifications)' : '');
 
     let rows = all;
     if (el('betaOnlyFlagged').checked) rows = rows.filter(r => r.rejections > 0);

@@ -30,7 +30,7 @@ Admins see a **Try beta** switch in the header. Off is the standard app; on adds
 - **Lot Comparison tab** — compares mean and CV% either before/after each series' most recent Target/SD change (usually a new lot) or between two date ranges. A series fails when the mean shift exceeds its lot shift limit; series with fewer than the chosen minimum n on either side are reported as "Too few". CSV export.
 - **Quality specifications (Settings)** — per-analyte TEa % (for sigma), CV% warn/high thresholds (used for the results-table colours while beta is on, instead of the fixed 5%/10%) and lot shift limit %, with a default row. No TEa values are pre-filled; enter them from the laboratory's chosen specification. Stored in the browser; Export/Import JSON to move them between browsers.
 
-**What's new panel** — while beta is on, the front screen opens with a "New in the beta" panel listing each beta update and where to find it. It can be hidden (remembered per browser) and reopened from Account › What's new in the beta. Switching beta on after data is loaded shows the same list in a dialog.
+**What's new panel** — while beta is on, the front screen opens with a "New in the beta" panel listing each beta update and where to find it, plus step-by-step instructions for sigma metrics (where to enter TEa, the formula Sigma = (TEa % − |Bias %|) ÷ CV %, and how to read the result). It can be hidden (remembered per browser) and reopened from Account › What's new in the beta. Switching beta on after data is loaded shows the same list in a dialog.
 
 Design changes in the beta:
 
