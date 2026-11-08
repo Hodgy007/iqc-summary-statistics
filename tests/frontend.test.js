@@ -289,6 +289,25 @@ describe('processData', () => {
     expect(result[0].level).toBe('4');
   });
 
+  test('overrides level to 4 for LAC sample ID on DxI-4 but keeps IA1 at its own level', () => {
+    const data = [
+      makeRow({ protocol: 'DXI 4 M', instrument: 'DXI 4 M', parameter: 'Ferritin', level: '1', sampleId: 'IA1' }),
+      makeRow({ protocol: 'DXI 4 M', instrument: 'DXI 4 M', parameter: 'Ferritin', level: '1', sampleId: 'LAC' }),
+      makeRow({ protocol: 'DXI 4 M', instrument: 'DXI 4 M', parameter: 'Ferritin', level: '1', sampleId: ' lac ' }),
+    ];
+    const result = processData(data);
+    expect(result.map(r => r.level)).toEqual(['1', '4', '4']);
+    expect(result.every(r => r.instrument === 'AU/DxI-4')).toBe(true);
+  });
+
+  test('LAC sample ID rule is limited to DxI-4 and does not match look-alike IDs', () => {
+    const data = [
+      makeRow({ protocol: 'DXI 1 L', instrument: 'DXI 1 L', level: '1', sampleId: 'LAC' }),
+      makeRow({ protocol: 'DXI 4 M', instrument: 'DXI 4 M', level: '1', sampleId: 'LACTATE' }),
+    ];
+    expect(processData(data).map(r => r.level)).toEqual(['1', '1']);
+  });
+
   test('filters out unknown instruments', () => {
     const data = [makeRow({ instrument: 'Unknown Machine' })];
     expect(processData(data)).toHaveLength(0);
