@@ -64,6 +64,14 @@ function parseCSV(text) {
 
 const KNOWN_INSTRUMENTS = new Set(['AU/DxI-1', 'AU/DxI-2', 'AU/DxI-3', 'AU/DxI-4']);
 
+// On AU/DxI-4 the LAC control (e.g. ferritin) can run under the same protocol
+// as IA1, so the protocol list above doesn't catch it. Split on sample ID
+// instead: sample ID "LAC" on DxI-4 is level 4, matching the other analysers.
+function isDxi4LacSample(row) {
+  return INSTRUMENTS_MAP[(row.instrument || '').trim()] === 'AU/DxI-4' &&
+    /^LAC\b/i.test((row.sampleId || '').trim());
+}
+
 function applyLevelOverrides(data) {
   return data.map(row => {
     const protocol = row.protocol.trim();
@@ -71,7 +79,8 @@ function applyLevelOverrides(data) {
       LEVEL_OVERRIDE_PROTOCOLS.has(protocol) ||
       protocol.toLowerCase().includes('hstni') ||
       (row.sampleId && row.sampleId.includes('TPP')) ||
-      (row.sampleId && row.sampleId.includes('HBQC'))
+      (row.sampleId && row.sampleId.includes('HBQC')) ||
+      isDxi4LacSample(row)
     ) {
       return { ...row, level: '4' };
     }

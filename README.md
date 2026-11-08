@@ -159,7 +159,7 @@ TestProto;AU5800 1 L;Glucose;1;01/03/2025 08:00;5.5;5.0;0.3;Accepted;OK;;user1;S
 2. **Filter protocols** — Remove patient means, moving averages, eval protocols, and other excluded protocols
 3. **Filter status** — Remove manually rejected and rerun-requested rows
 4. **Map instruments** — Rename raw instrument names (e.g. `AU5800 1 L` -> `AU/DxI-1`)
-5. **Override levels** — Set level to 4 for specific protocols (LAC, hsTnI, HBQC, etc.) and TPP/HBQC sample IDs
+5. **Override levels** — Set level to 4 for specific protocols (LAC, hsTnI, HBQC, etc.), TPP/HBQC sample IDs, and the LAC sample ID on AU/DxI-4
 6. **Filter instruments** — Keep only known instruments (AU/DxI-1 through AU/DxI-4)
 7. **Build results** — Group by parameter+level, compute stats per instrument and combined
 

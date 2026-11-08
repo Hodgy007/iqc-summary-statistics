@@ -2473,7 +2473,7 @@ const DOCS = {
 <li>Filter protocols — remove patient means, moving averages, eval protocols</li>
 <li>Filter status — remove manually rejected and rerun-requested rows</li>
 <li>Map instruments — rename raw names (e.g. AU5800 1 L &rarr; AU/DxI-1)</li>
-<li>Override levels — set level 4 for specific protocols (LAC, hsTnI, HBQC, etc.)</li>
+<li>Override levels — set level 4 for specific protocols (LAC, hsTnI, HBQC, etc.) and LAC sample IDs on AU/DxI-4</li>
 <li>Filter instruments — keep only known instruments (AU/DxI-1 through 4)</li>
 <li>Build results — group by parameter+level, compute stats per instrument and combined</li>
 </ol>
@@ -2717,6 +2717,14 @@ function parseCSV(text) {
 // =============================================
 const KNOWN_INSTRUMENTS = new Set(['AU/DxI-1', 'AU/DxI-2', 'AU/DxI-3', 'AU/DxI-4']);
 
+// On AU/DxI-4 the LAC control (e.g. ferritin) can run under the same protocol
+// as IA1, so the protocol list above doesn't catch it. Split on sample ID
+// instead: sample ID "LAC" on DxI-4 is level 4, matching the other analysers.
+function isDxi4LacSample(row) {
+  return INSTRUMENTS_MAP[(row.instrument || '').trim()] === 'AU/DxI-4' &&
+    /^LAC\b/i.test((row.sampleId || '').trim());
+}
+
 // Promote specific protocols/samples to level 4 BEFORE any filtering so the
 // promotion is locked in before a later filter can drop the row. In
 // particular, hsTnI Eval rows get promoted to level 4 here, then the eval
@@ -2728,7 +2736,8 @@ function applyLevelOverrides(data) {
       LEVEL_OVERRIDE_PROTOCOLS.has(protocol) ||
       protocol.toLowerCase().includes('hstni') ||
       (row.sampleId && row.sampleId.includes('TPP')) ||
-      (row.sampleId && row.sampleId.includes('HBQC'))
+      (row.sampleId && row.sampleId.includes('HBQC')) ||
+      isDxi4LacSample(row)
     ) {
       return { ...row, level: '4' };
     }
