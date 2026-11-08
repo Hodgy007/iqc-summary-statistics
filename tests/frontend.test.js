@@ -614,6 +614,21 @@ describe('frontend-logic stays in sync with index.html', () => {
     expect(LEVEL_OVERRIDE_PROTOCOLS).toEqual(extractSet('LEVEL_OVERRIDE_PROTOCOLS'));
   });
 
+  test('Import Rules doc lists exactly the protocols the code uses', () => {
+    for (const name of ['LEVEL_OVERRIDE_PROTOCOLS', 'EXCLUDED_PROTOCOLS']) {
+      const m = html.match(new RegExp(`data-ir-list="${name}">([\\s\\S]*?)</div>`));
+      expect(m).not.toBeNull();
+      const listed = new Set([...m[1].matchAll(/<span class="ir-chip">([^<]*)<\/span>/g)].map(x => x[1]));
+      expect(listed).toEqual(extractSet(name));
+    }
+  });
+
+  test('Import Rules doc is admin only', () => {
+    expect(html).toMatch(/importRules: \{\s*title: 'Import Rules',\s*adminOnly: true,/);
+    expect(html).toMatch(/if \(doc\.adminOnly && !isAdminUser\(\)\) return;/);
+    expect(html).toMatch(/id="docTabImport" hidden>/);
+  });
+
   test('INSTRUMENTS_MAP matches', () => {
     const m = html.match(/const INSTRUMENTS_MAP = \{([\s\S]*?)\};/);
     expect(m).not.toBeNull();

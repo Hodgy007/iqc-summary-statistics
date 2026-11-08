@@ -521,6 +521,22 @@
     .modal-body p { margin: 8px 0; }
     .modal-body table { border-collapse: collapse; margin: 8px 0; }
     .modal-body th, .modal-body td { border-bottom: 1px solid var(--border); }
+    /* Import Rules doc (admin only) */
+    .ir code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; background: var(--surface2); padding: 1px 5px; border-radius: 4px; }
+    .ir-dim { color: var(--text-dim); }
+    .ir-steps { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; counter-reset: irstep; padding-left: 0 !important; }
+    .ir-steps li { counter-increment: irstep; margin: 0 !important; padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; }
+    .ir-steps li::before { content: counter(irstep) " "; color: var(--accent); font-weight: 600; }
+    .ir-scroll { overflow-x: auto; }
+    .ir-scroll table { width: 100%; font-size: 12.5px; }
+    .ir-scroll th, .ir-scroll td { padding: 6px 8px; text-align: left; vertical-align: top; white-space: normal; }
+    .ir-scroll th { color: var(--text-dim); font-weight: 600; white-space: nowrap; }
+    .ir-chips { display: flex; flex-wrap: wrap; gap: 5px; margin: 6px 0; }
+    .ir-chip { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11.5px; padding: 2px 7px; border: 1px solid var(--border); border-radius: 4px; white-space: nowrap; }
+    .ir-pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 0 7px; border-radius: 999px; white-space: nowrap; }
+    .ir-pill.keep { color: var(--success); background: color-mix(in srgb, var(--success) 15%, transparent); }
+    .ir-pill.drop { color: var(--danger); background: color-mix(in srgb, var(--danger) 15%, transparent); }
+    .ir-pill.change { color: var(--warning); background: color-mix(in srgb, var(--warning) 15%, transparent); }
     .modal-body code { background: var(--bg); padding: 2px 6px; border-radius: 3px; font-size: 12px; }
 
     .insights-toolbar {
@@ -1927,6 +1943,7 @@
         <h3 id="docsModalTitle">Documentation</h3>
         <button class="btn" onclick="showDoc('readme')" style="font-size:11px;padding:4px 10px" id="docTabReadme">App Docs</button>
         <button class="btn" onclick="showDoc('compliance')" style="font-size:11px;padding:4px 10px" id="docTabCompliance">Compliance</button>
+        <button class="btn" onclick="showDoc('importRules')" style="font-size:11px;padding:4px 10px" id="docTabImport" hidden>Import Rules</button>
       </div>
       <button class="modal-close" id="docsModalClose">&#10005;</button>
     </div>
@@ -2607,16 +2624,146 @@ const DOCS = {
 <b>Document Control</b> — Version 1.0 | Date: 2026-04-03 | Application v2.0 | Classification: Internal | Review: Annually or on significant change
 </div>
 `
+  },
+  importRules: {
+    title: 'Import Rules',
+    adminOnly: true,
+    content: `
+<div class="ir">
+<p>Every uploaded QC export goes through the same seven steps, in this order. Use this to check why a result is at a particular level, or why it is missing.</p>
+<ol class="ir-steps">
+<li>Read the file</li><li>Promote to level 4</li><li>Exclude protocols</li><li>Exclude evaluation</li><li>Map instruments</li><li>Filter run status</li><li>Group and calculate</li>
+</ol>
+
+<h3>Worked example</h3>
+<p class="ir-dim">Example rows, not real data.</p>
+<div class="ir-scroll"><table>
+<thead><tr><th>Protocol</th><th>Instrument</th><th>Analyte</th><th>Level in file</th><th>Sample ID</th><th>Status</th><th>Outcome</th></tr></thead>
+<tbody>
+<tr><td><code>DXI 4 M</code></td><td><code>DXI 4 M</code></td><td><code>I_Ferritin</code></td><td>1</td><td><code>IA1</code></td><td>Accepted</td><td><span class="ir-pill keep">Kept</span> Ferritin, level 1, AU/DxI-4</td></tr>
+<tr><td><code>DXI 4 M</code></td><td><code>DXI 4 M</code></td><td><code>I_Ferritin</code></td><td>1</td><td><code>LAC</code></td><td>Accepted</td><td><span class="ir-pill change">Level 4</span> LAC sample ID on DxI-4 (step 2)</td></tr>
+<tr><td><code>LAC DXI 1 L</code></td><td><code>DXI 1 L</code></td><td><code>I_Ferritin</code></td><td>1</td><td><code>LAC</code></td><td>Accepted</td><td><span class="ir-pill change">Level 4</span> protocol on the level 4 list (step 2)</td></tr>
+<tr><td><code>DXI 2 hsTnI</code></td><td><code>DXI 2 L</code></td><td><code>I_hsTnI</code></td><td>2</td><td><code>NIA2</code></td><td>Accepted</td><td><span class="ir-pill change">Level 4</span> protocol contains "hsTnI" (step 2)</td></tr>
+<tr><td><code>DXI 1 L Patient Means</code></td><td><code>DXI 1 L</code></td><td><code>I_TSH</code></td><td>1</td><td>—</td><td>Accepted</td><td><span class="ir-pill drop">Dropped</span> excluded protocol (step 3)</td></tr>
+<tr><td><code>DxI 3 hsTnI Eval</code></td><td><code>DXI 3 M</code></td><td><code>I_hsTnI</code></td><td>1</td><td><code>IA1</code></td><td>Accepted</td><td><span class="ir-pill drop">Dropped</span> evaluation protocol, while the toggle is on (step 4)</td></tr>
+<tr><td><code>DxH1 run</code></td><td><code>DxH 1</code></td><td><code>H_HGB</code></td><td>1</td><td>—</td><td>Accepted</td><td><span class="ir-pill drop">Dropped</span> not one of the four analysers (step 5)</td></tr>
+<tr><td><code>AU5800 1 L</code></td><td><code>AU5800 1 L</code></td><td><code>C_CRP</code></td><td>2</td><td><code>IA2</code></td><td>Rerun requested</td><td><span class="ir-pill drop">Hidden</span> by the default "Accepted Only" filter (step 6)</td></tr>
+</tbody></table></div>
+
+<h3>1. Read the file</h3>
+<p>Each export is read one line per QC result, with fields separated by semicolons (<code>;</code>). Spaces around each field are trimmed. Several files can be uploaded together and are combined.</p>
+<div class="ir-scroll"><table>
+<thead><tr><th>Column</th><th>Field</th><th>How it is read</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Protocol</td><td>Text, used for the level 4 rules and the exclusions</td></tr>
+<tr><td>2</td><td>Instrument</td><td>Text, renamed in step 5</td></tr>
+<tr><td>3</td><td>Parameter (analyte)</td><td>A leading <code>C_</code> or <code>I_</code> is removed, so <code>I_Ferritin</code> becomes <code>Ferritin</code>. Other prefixes such as <code>H_</code> are kept.</td></tr>
+<tr><td>4</td><td>Level</td><td>As exported, unless step 2 changes it to 4</td></tr>
+<tr><td>5</td><td>Date</td><td>See "How dates are read" below</td></tr>
+<tr><td>6</td><td>Result</td><td>Must be a number, or the row is dropped</td></tr>
+<tr><td>7–8</td><td>Target, SD</td><td>Numbers. Blank or text is read as 0.</td></tr>
+<tr><td>9</td><td>Status</td><td>For example <code>Accepted</code>, <code>Manually rejected</code>, <code>Rerun requested</code></td></tr>
+<tr><td>10–12</td><td>Message, Comment, User</td><td>Shown in the raw data and exports only</td></tr>
+<tr><td>13</td><td>Sample ID</td><td>For example <code>IA1</code>, <code>LAC</code>, <code>TPP-001</code>. Used for the level 4 rules.</td></tr>
+</tbody></table></div>
+<ul>
+<li>The first line is skipped if its first field contains the word "protocol" (the header row).</li>
+<li>Rows with fewer than 9 fields, or with a blank or non-numeric result, are dropped.</li>
+</ul>
+
+<h3>2. Promote some rows to level 4</h3>
+<p>This runs before any row is dropped. A row is changed to level 4 if <b>any</b> of these apply. Every other row keeps the level from the file. Nothing is ever moved down a level.</p>
+<h4>A · Protocol is on the level 4 list (exact match, capitals matter)</h4>
+<div class="ir-chips" data-ir-list="LEVEL_OVERRIDE_PROTOCOLS"><span class="ir-chip">LAC DXI 1 L</span><span class="ir-chip">LAC DXI 2 L</span><span class="ir-chip">LAC DXI 3 L</span><span class="ir-chip">LAC DXI 4 L</span><span class="ir-chip">LAC DXI 3 M</span><span class="ir-chip">LAC DXI 4 M</span><span class="ir-chip">DXI 1 hsTnI</span><span class="ir-chip">DXI 2 hsTnI</span><span class="ir-chip">DXI 3 hsTnT</span><span class="ir-chip">DXI 4 hsTnI</span><span class="ir-chip">AU 5800 1 L HBQC</span><span class="ir-chip">AU 5800 2 L HBQC</span><span class="ir-chip">AU3 680 M HBQC</span><span class="ir-chip">AU4 680 M HBQC</span><span class="ir-chip">AU5800 1 L P</span><span class="ir-chip">AU 5800 2 L P</span><span class="ir-chip">AU3 680 M P</span><span class="ir-chip">AU4 680 M P</span></div>
+<h4>B · Protocol contains "hsTnI" anywhere (capitals don't matter)</h4>
+<p class="ir-dim">For example <code>DxI 4.1 hsTnI</code> or <code>DxI 2 hsTnI Eval</code>. Evaluation rows are still promoted, then step 4 can drop them.</p>
+<h4>C · Sample ID contains "TPP" or "HBQC" (capitals matter)</h4>
+<p class="ir-dim">For example <code>TPP-001</code> or <code>HBQC-002</code>, on any analyser.</p>
+<h4>D · Sample ID is LAC on AU/DxI-4</h4>
+<p class="ir-dim">On DxI-4 the LAC control can share a protocol with IA1, so rule A doesn't catch it. Any AU/DxI-4 row with sample ID <code>LAC</code> goes to level 4. Spaces and capitals don't matter, and <code>LAC-2</code> or <code>LAC 2</code> also count; <code>LAC1</code> and <code>LACTATE</code> do not. This puts ferritin on DxI-4 in line with the other analysers: IA1 at level 1, LAC at level 4.</p>
+
+<h3>3. Exclude protocols</h3>
+<p>Rows from these protocols are removed. The match is exact and capitals matter.</p>
+<div class="ir-chips" data-ir-list="EXCLUDED_PROTOCOLS"><span class="ir-chip">AU 5800 1 L Patient Means</span><span class="ir-chip">AU 5800 2 L Patient Means</span><span class="ir-chip">AU3 680 M Patient Means</span><span class="ir-chip">AU4 680 M Patient Means</span><span class="ir-chip">DXI 1 L Patient Means</span><span class="ir-chip">DXI 2 L Patient Means</span><span class="ir-chip">DXI 3 M Patient Means</span><span class="ir-chip">DXI 4 M Patient Means</span><span class="ir-chip">DxH L1 MCHFT Moving Average</span><span class="ir-chip">DxH L2 MCHFT Moving Average</span><span class="ir-chip">DxH L3 MCHFT Moving Average</span><span class="ir-chip">DxH1 ECHT Moving Average</span><span class="ir-chip">DxH2 ECHT Moving Average</span><span class="ir-chip">DXI 1 L NEW LAC</span><span class="ir-chip">DXI 2 L NEW LAC</span><span class="ir-chip">DXI 3 M NEW LAC</span><span class="ir-chip">DXI 4 M NEW LAC</span><span class="ir-chip">ACCURUN1</span><span class="ir-chip">ACCURUN25</span><span class="ir-chip">ACCURUN52</span><span class="ir-chip">HAVIgMqc</span><span class="ir-chip">HBcAbQC</span><span class="ir-chip">HBsAbQC</span><span class="ir-chip">HBsAgQC</span><span class="ir-chip">HCVABV3QC</span><span class="ir-chip">HIVCoQC</span><span class="ir-chip">QBLUE</span><span class="ir-chip">QBLUE-SYPH</span><span class="ir-chip">QHEPA</span><span class="ir-chip">QHIV2</span><span class="ir-chip">QHIVp24</span><span class="ir-chip">RUBELLAIgGQC</span><span class="ir-chip">SYPHQC</span><span class="ir-chip">I_HCG</span><span class="ir-chip">H_MCH</span><span class="ir-chip">H_MCHC</span><span class="ir-chip">H_MCV</span><span class="ir-chip">H_WBC</span></div>
+
+<h3>4. Exclude evaluation protocols</h3>
+<p>While <b>Exclude Evaluation</b> is on (the default), any protocol with a word starting "eval" is removed: <code>Eval</code>, <code>EVAL</code>, <code>Evaluation</code>. The word has to start with "eval", so <code>Devalue Test</code> is kept.</p>
+
+<h3>5. Map instruments to the four analysers</h3>
+<div class="ir-scroll"><table>
+<thead><tr><th>Instrument in the export</th><th>Reported as</th></tr></thead>
+<tbody>
+<tr><td><code>AU5800 1 L</code> · <code>DXI 1 L</code></td><td><b>AU/DxI-1</b></td></tr>
+<tr><td><code>AU5800 2 L</code> · <code>DXI 2 L</code></td><td><b>AU/DxI-2</b></td></tr>
+<tr><td><code>AU3 680 M</code> · <code>DXI 3 M</code></td><td><b>AU/DxI-3</b></td></tr>
+<tr><td><code>AU4 680 M</code> · <code>DXI 4 M</code></td><td><b>AU/DxI-4</b></td></tr>
+</tbody></table></div>
+<p class="ir-dim">Names must match exactly. Rows from any other instrument, such as the DxH haematology analysers, are removed.</p>
+
+<h3>6. Filter by run status</h3>
+<div class="ir-scroll"><table>
+<thead><tr><th>Status Filter</th><th>Accepted and others</th><th>Manually rejected</th><th>Rerun requested</th></tr></thead>
+<tbody>
+<tr><td><b>Accepted Only</b> (default)</td><td><span class="ir-pill keep">Included</span></td><td><span class="ir-pill drop">Removed</span></td><td><span class="ir-pill drop">Removed</span></td></tr>
+<tr><td><b>All Statuses</b></td><td><span class="ir-pill keep">Included</span></td><td><span class="ir-pill keep">Included</span></td><td><span class="ir-pill keep">Included</span></td></tr>
+<tr><td><b>Rejected Only</b></td><td><span class="ir-pill drop">Removed</span></td><td><span class="ir-pill keep">Included</span></td><td><span class="ir-pill drop">Removed</span></td></tr>
+</tbody></table></div>
+
+<h3>7. Group and calculate</h3>
+<p>Results are grouped by <b>analyte and level</b>, with a column for each analyser plus a combined column, sorted by analyte A to Z, then level.</p>
+<ul>
+<li><b>Mean</b> = sum of results ÷ n</li>
+<li><b>SD</b> = sample SD, √(Σ(result − mean)² ÷ (n − 1)); 0 when n = 1</li>
+<li><b>CV%</b> = SD ÷ mean × 100, shown as a positive number</li>
+<li>Ca, Mg, PO4, NOA and NBA are shown to 3 decimal places; everything else to 2.</li>
+<li>The combined column pools every result from the four analysers. It is not an average of the four means.</li>
+</ul>
+
+<h3>Filters you apply after import</h3>
+<ul>
+<li><b>Date from / to</b>, <b>Protocol</b>, <b>instrument exclusions</b> and <b>removed points</b> change which results are counted, and the statistics are recalculated.</li>
+<li><b>Analyte selection</b>, <b>Search Analyte</b> and <b>CV% Highlight</b> only change which rows the table shows.</li>
+</ul>
+
+<h3>How dates are read</h3>
+<div class="ir-scroll"><table>
+<thead><tr><th>Date in the file</th><th>Rule</th><th>Read as</th></tr></thead>
+<tbody>
+<tr><td><code>2026-02-01</code></td><td>Starts with a 4-digit year</td><td>1 Feb 2026</td></tr>
+<tr><td><code>25/02/2026</code></td><td>First number over 12, so it is the day</td><td>25 Feb 2026</td></tr>
+<tr><td><code>02/25/2026</code></td><td>Second number over 12, so it is the day</td><td>25 Feb 2026</td></tr>
+<tr><td><code>01-02-2026</code></td><td>Can't tell, uses dashes: day first (UK)</td><td>1 Feb 2026</td></tr>
+<tr><td><code>01/02/2026</code></td><td>Can't tell, uses slashes: month first (US)</td><td>2 Jan 2026</td></tr>
+</tbody></table></div>
+
+<h3>Things to watch for</h3>
+<ul>
+<li><b>Renamed protocols stop matching.</b> The level 4 and exclusion lists need the exact name. A renamed protocol is no longer promoted or excluded, and nothing warns you.</li>
+<li><b>Slash dates with a day of 12 or less</b> are read month first, so <code>01/02/2026</code> is 2 January.</li>
+<li><b>Capitals in sample IDs.</b> The TPP and HBQC checks match capitals exactly; the LAC check does not.</li>
+<li><b>Saved reports keep their levels.</b> A report saved before a rule changed reopens as it was saved. Upload again, or change a filter after reopening, to apply the current rules.</li>
+</ul>
+</div>
+`
   }
 };
+
+function isAdminUser() {
+  return !!(currentUser && currentUser.role === 'admin');
+}
 
 function showDoc(docId) {
   const doc = DOCS[docId];
   if (!doc) return;
+  if (doc.adminOnly && !isAdminUser()) return;
   document.getElementById('docsModalTitle').textContent = doc.title;
   document.getElementById('docsModalBody').innerHTML = doc.content;
+  document.getElementById('docsModalBody').scrollTop = 0;
   document.getElementById('docTabReadme').style.background = docId === 'readme' ? 'var(--accent)' : '';
   document.getElementById('docTabCompliance').style.background = docId === 'compliance' ? 'var(--accent)' : '';
+  const importTab = document.getElementById('docTabImport');
+  importTab.hidden = !isAdminUser();
+  importTab.style.background = docId === 'importRules' ? 'var(--accent)' : '';
   docsModalOverlay.classList.add('active');
 }
 
