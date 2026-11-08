@@ -67,8 +67,11 @@ const KNOWN_INSTRUMENTS = new Set(['AU/DxI-1', 'AU/DxI-2', 'AU/DxI-3', 'AU/DxI-4
 // On AU/DxI-4 the LAC control (e.g. ferritin) can run under the same protocol
 // as IA1, so the protocol list above doesn't catch it. Split on sample ID
 // instead: sample ID "LAC" on DxI-4 is level 4, matching the other analysers.
+// Accepts the raw export name (DXI 4 M / AU4 680 M) and the canonical name, since
+// a reloaded saved report re-runs the overrides on already-renamed rows.
 function isDxi4LacSample(row) {
-  return INSTRUMENTS_MAP[(row.instrument || '').trim()] === 'AU/DxI-4' &&
+  const inst = (row.instrument || '').trim();
+  return (INSTRUMENTS_MAP[inst] || inst) === 'AU/DxI-4' &&
     /^LAC\b/i.test((row.sampleId || '').trim());
 }
 

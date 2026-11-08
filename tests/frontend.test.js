@@ -308,6 +308,28 @@ describe('processData', () => {
     expect(processData(data).map(r => r.level)).toEqual(['1', '1']);
   });
 
+  test('LAC sample ID rule also applies to already-renamed rows from a saved report', () => {
+    const data = [makeRow({ instrument: 'AU/DxI-4', level: '1', sampleId: 'LAC' })];
+    expect(buildScopedData(data, true)[0].level).toBe('4');
+  });
+
+  test('ferritin end to end: IA1 level 1 and LAC level 4 on DxI-1 and DxI-4', () => {
+    const csv = [
+      'Protocol;Instrument;Parameter;Level;Date;Value;Target;SD;Status;Message;Comment;User;SampleId',
+      'DXI 1 L;DXI 1 L;I_Ferritin;1;01/01/2026;50;50;3;Accepted;;;u;IA1',
+      'LAC DXI 1 L;DXI 1 L;I_Ferritin;1;01/01/2026;400;400;20;Accepted;;;u;LAC',
+      'DXI 4 M;DXI 4 M;I_Ferritin;1;01/01/2026;51;50;3;Accepted;;;u;IA1',
+      'DXI 4 M;DXI 4 M;I_Ferritin;1;01/01/2026;410;400;20;Accepted;;;u;LAC',
+    ].join('\n');
+    const results = buildResults(processData(parseCSV(csv)));
+    const byLevel = Object.fromEntries(results.map(r => [r.level, r]));
+    expect(Object.keys(byLevel).sort()).toEqual(['1', '4']);
+    expect(byLevel['1']['AU/DxI-1'].mean).toBe(50);
+    expect(byLevel['1']['AU/DxI-4'].mean).toBe(51);
+    expect(byLevel['4']['AU/DxI-1'].mean).toBe(400);
+    expect(byLevel['4']['AU/DxI-4'].mean).toBe(410);
+  });
+
   test('filters out unknown instruments', () => {
     const data = [makeRow({ instrument: 'Unknown Machine' })];
     expect(processData(data)).toHaveLength(0);
